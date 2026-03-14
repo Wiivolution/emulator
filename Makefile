@@ -1,6 +1,6 @@
 PROGS = armemu 
 
-CFILES = armcore.c memory.c dev.c main.c
+CFILES = armcore.c memory.c dev.c aes.c main.c
 
 all : ${PROGS}
 

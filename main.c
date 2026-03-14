@@ -27,6 +27,7 @@
 #include <time.h>
 
 #include "armcore.h"
+#include "aes.h"
 
 int main(int argc, char **argv)
 {
@@ -46,7 +47,7 @@ int main(int argc, char **argv)
     uint32_t program[size / 4];
     fread(program, 1, size, fd);
     printf("\n Size = %d\n", size);
-
+    AES_Init();
     execute_program(program, size);
     
     return 0;

@@ -75,7 +75,6 @@ int Mem_free(Memory* mem) {
 
 uint8_t* Mem_ResolveSRAM(uint32_t addr, arm_state *as, uint8_t i) {
     if(!(as->HW_regs[HW_SRNPROT] & 0x20)) {
-        printf("\nMemory range id: %d", i);
         return (uint8_t*)(as->memory.SRAM + (addr - Mem_Table[i].MMU_Addr_Start));
     } else {
         return (uint8_t*)(as->memory.SRAM + (addr - Mem_Table[i].MMU_Addr_Start));

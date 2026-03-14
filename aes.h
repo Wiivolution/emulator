@@ -18,3 +18,10 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#ifndef _DEV_H_
+#define _DEV_H_
+
+int AES_Init();
+
+#endif

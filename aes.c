@@ -27,8 +27,13 @@
 
 uint8_t Regs[0x14];
 
+device AES = {
+    0, Regs, 0x0d020000, 0x14, 2
+};
+
 int AES_Init() {
-    
+    Dev_AddDevice(&AES);
+    return 0;
 }
 
 int AES_Deinit() {
