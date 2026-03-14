@@ -1,1 +1,1 @@
-# Wii-Emulator : An accurate emulator for the Wii
+# AccuRVL : An accurate Wii emulator
