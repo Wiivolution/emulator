@@ -60,7 +60,7 @@ struct arm_state *arm_state_new(size_t program_loc, size_t entrypoint,
     } 
 
     printf("Done.\n");
-    printf("Putting program.bin into address 0x%X| Program size: 0x%X\n", Mem_Resolve(program_loc, as), program_size);
+    printf("Putting program file into address 0x%X| Program size: 0x%X\n", Mem_Resolve(program_loc, as), program_size);
     fflush(stdout);
 
     memcpy(Mem_Resolve(program_loc, as), program, program_size);
