@@ -31,6 +31,8 @@ typedef struct device {
 } device;
 
 uint8_t* Dev_ResolveRegs(uint32_t addr);
+int Dev_GetDeviceCount();
+device* Dev_GetDeviceList();
 int Dev_AddDevice(device* dev);
 
 #endif

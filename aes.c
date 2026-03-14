@@ -25,13 +25,15 @@
 #include <string.h>
 #include "dev.h"
 
-uint8_t Regs[0x14];
+uint8_t* AES_Regs;
 
 device AES = {
-    0, Regs, 0x0d020000, 0x14, 2
+    0, NULL, 0x0d020000, 0x14, 2
 };
 
 int AES_Init() {
+    AES_Regs = malloc(0x1c);
+    AES.ptr = AES_Regs;
     Dev_AddDevice(&AES);
     return 0;
 }

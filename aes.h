@@ -19,8 +19,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _DEV_H_
-#define _DEV_H_
+#ifndef _AES_H_
+#define _AES_H_
 
 int AES_Init();
 

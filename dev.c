@@ -30,19 +30,28 @@ uint32_t Devices_count = 0;
 
 int Dev_AddDevice(device* dev) {
     Devices_count++;
-    device* temp = malloc(sizeof(device) * Devices_count);
+    uint32_t* temp = malloc(sizeof(device) * Devices_count);
     if(temp == NULL) {
         printf("\nDev mem allocation failed!");
         Devices_count--;
         return -1;
     }
     if(Dev_Table != NULL) {
-        memcpy(temp, Dev_Table, sizeof(device) * (Devices_count - 1));
+        memcpy(temp, Dev_Table, (sizeof(device) * (Devices_count - 1)));
         free(Dev_Table);
     }
-    memcpy(temp + sizeof(device) * (Devices_count - 1), dev, sizeof(device));
-    Dev_Table = temp;
+    dev->ID = Devices_count;
+    memcpy(&(temp[(sizeof(device) * (Devices_count - 1)) / 4]), dev, sizeof(device));
+    Dev_Table = (device*)temp;
     return 0;
+}
+
+int Dev_GetDeviceCount() {
+    return Devices_count;
+}
+
+device* Dev_GetDeviceList() {
+    return Dev_Table;
 }
 
 int Dev_RemoveDevice(uint32_t ID) {
@@ -66,6 +75,7 @@ int Dev_RemoveDevice(uint32_t ID) {
 
 uint8_t* Dev_ResolveRegs(uint32_t addr) {
     for(int i = 0; i < Devices_count; i++) {
+        printf("\n Looking at device %d", i);
         if(addr >= Dev_Table[i].regs_addr &&
            addr <= Dev_Table[i].regs_addr + Dev_Table[i].regs_length)
         {
