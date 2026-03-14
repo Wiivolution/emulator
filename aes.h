@@ -1,7 +1,7 @@
 /*
     Starmulator - Low Level Wii IOP Emulator
 
-    dev.h - Devices MMIO & Management
+    aes.h - AES Engine
     
     Copyright (C) 2026 Abdelali221
 
@@ -18,19 +18,3 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-
-#ifndef _DEV_H_
-#define _DEV_H_
-
-typedef struct device {
-    uint32_t ID;
-    uint8_t* ptr;
-    uint32_t regs_addr;
-    uint32_t regs_length;
-    uint32_t IRQ;
-} device;
-
-uint8_t* Dev_ResolveRegs(uint32_t addr);
-int Dev_AddDevice(device* dev);
-
-#endif

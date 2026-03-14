@@ -24,9 +24,10 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "hollywood.h"
 #include "memory.h"
 #include "armcore.h"
-#include "hollywood.h"
+#include "dev.h"
 
 MMU_Table Mem_Table[] = {
     0x80000000, 0x817FFFFF, 0x00000000, 0x017FFFFF, MEM_1,
@@ -40,7 +41,7 @@ MMU_Table Mem_Table[] = {
     0x0D800000,	0x0D80FFFF, 0x00000000, 0x0000FFFF, REGS
 };
 
-int init_memory(Memory* mem) {
+int Mem_Init(Memory* mem) {
     printf("\nAllocating MEM1...");
     fflush(stdout);
     mem->MEM1 = malloc(24*1024);
@@ -65,14 +66,14 @@ int init_memory(Memory* mem) {
     return 0;
 }
 
-int free_memory(Memory* mem) {
+int Mem_free(Memory* mem) {
     free(mem->MEM1);
     free(mem->MEM2);
     free(mem->SRAM);
     return 0;    
 }
 
-uint8_t* resolve_sram(uint32_t addr, arm_state *as, uint8_t i) {
+uint8_t* Mem_ResolveSRAM(uint32_t addr, arm_state *as, uint8_t i) {
     if(!(as->HW_regs[HW_SRNPROT] & 0x20)) {
         printf("\nMemory range id: %d", i);
         return (uint8_t*)(as->memory.SRAM + (addr - Mem_Table[i].MMU_Addr_Start));
@@ -81,24 +82,32 @@ uint8_t* resolve_sram(uint32_t addr, arm_state *as, uint8_t i) {
     }
 }
 
-uint8_t* read_mem(uint32_t addr, arm_state *as) {
+uint8_t* Mem_Resolve(uint32_t addr, arm_state *as) {
+    uint8_t* retaddr = NULL;
     for(int i = 0; i < 9; i++) {
         if(addr >= Mem_Table[i].MMU_Addr_Start &&
            addr <= Mem_Table[i].MMU_Addr_End)
         {
             if(Mem_Table[i].Mem == MEM_1) {
-                return (uint8_t*)(as->memory.MEM1 + (addr - Mem_Table[i].MMU_Addr_Start));
+                retaddr = (uint8_t*)(as->memory.MEM1 + (addr - Mem_Table[i].MMU_Addr_Start));
             } else if(Mem_Table[i].Mem == MEM_2) {
-                return (uint8_t*)(as->memory.MEM2 + (addr - Mem_Table[i].MMU_Addr_Start));
+                retaddr = (uint8_t*)(as->memory.MEM2 + (addr - Mem_Table[i].MMU_Addr_Start));
             } else if(Mem_Table[i].Mem == ARM_SRAM_A || Mem_Table[i].Mem == ARM_SRAM_B) {
-                return resolve_sram(addr, as, i);
+                retaddr = Mem_ResolveSRAM(addr, as, i);
             } else if(Mem_Table[i].Mem == REGS) {
-                return (uint8_t*)(as->HW_regs + (addr - Mem_Table[i].MMU_Addr_Start));
+                retaddr = (uint8_t*)(as->HW_regs + (addr - Mem_Table[i].MMU_Addr_Start));
             }
         }
     }
+    if(retaddr != NULL) {
+        return retaddr;
+    }
+    retaddr = Dev_ResolveRegs(addr);
+    if(retaddr != NULL) {
+        return retaddr;
+    }
     printf("\nAddress invalid! | addr: 0x%X \n", addr);
     fflush(stdout);
-    free_memory(&as->memory);
+    Mem_free(&as->memory);
     exit(-1);
 }

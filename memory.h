@@ -28,7 +28,6 @@
 #define ARM_SRAM_A  3
 #define ARM_SRAM_B  4
 
-
 #define MEM_24MB 24 * 1024 * 1024 // bytes
 #define MEM_64MB 64 * 1024 * 1024 // bytes
 
@@ -46,7 +45,7 @@ typedef struct MMU_Table {
     uint8_t  Mem;
 } MMU_Table;
 
-int init_memory(Memory* mem);
-int free_memory(Memory* mem);
+int Mem_Init(Memory* mem);
+int Mem_free(Memory* mem);
 
 #endif

@@ -33,7 +33,7 @@
 
 #define NANO_PER_SEC 1000000000.0
 
-extern uint8_t* read_mem(uint32_t location, void* as);
+extern uint8_t* Mem_Resolve(uint32_t addr, void* as);
 
 #include "armcore.h"
 #include "memory.h"
@@ -54,16 +54,16 @@ struct arm_state *arm_state_new(size_t program_loc, size_t entrypoint,
 
     printf("Initializing Memory...");
 
-    if(init_memory(&as->memory) < 0) {
+    if(Mem_Init(&as->memory) < 0) {
         printf("\nmemory init failed!");
         exit(-1);
     } 
 
     printf("Done.\n");
-    printf("Putting program.bin into address 0x%X| Program size: 0x%X\n", read_mem(program_loc, as), program_size);
+    printf("Putting program.bin into address 0x%X| Program size: 0x%X\n", Mem_Resolve(program_loc, as), program_size);
     fflush(stdout);
 
-    memcpy(read_mem(program_loc, as), program, program_size);
+    memcpy(Mem_Resolve(program_loc, as), program, program_size);
 
     // Initialize all registers to zero.
     as->cpsr = 0;
@@ -83,7 +83,7 @@ struct arm_state *arm_state_new(size_t program_loc, size_t entrypoint,
 
 void arm_state_free(struct arm_state *as)
 {
-    free_memory(&as->memory);
+    Mem_free(&as->memory);
     free(as);
 }
 
@@ -96,7 +96,7 @@ void arm_state_print(struct arm_state *as)
         printf("r%d = (%X) %d\n", i, as->regs[i], (int) as->regs[i]);
     }
     uint32_t pcdata = 0;
-    memcpy(&pcdata, read_mem(as->regs[PC], as), 4);
+    memcpy(&pcdata, Mem_Resolve(as->regs[PC], as), 4);
     
     printf("Data at PC : 0x%X\n", __builtin_bswap32(pcdata));
     printf("cpsr: 0x%x\n", as->cpsr);
@@ -316,18 +316,18 @@ void execute_single_data_transfer_instruction(struct arm_state *as, uint32_t iw)
     if (b_bit == 1) {
         // Check l bit
         if (l_bit == 1) {
-            memcpy(&as->regs[rd], read_mem(modified_base_value, as), 1); //ldrb
+            memcpy(&as->regs[rd], Mem_Resolve(modified_base_value, as), 1); //ldrb
         }
     }
     else {
         //Check l bit
         if (l_bit == 1) {
-            memcpy(&as->regs[rd], read_mem(modified_base_value, as), 4); //ldr
+            memcpy(&as->regs[rd], Mem_Resolve(modified_base_value, as), 4); //ldr
             as->regs[rd] = __builtin_bswap32(as->regs[rd]);
         }
         else {
             as->regs[rd] = __builtin_bswap32(as->regs[rd]);
-            memcpy(read_mem(modified_base_value, as), &as->regs[rd], 4); // str
+            memcpy(Mem_Resolve(modified_base_value, as), &as->regs[rd], 4); // str
             as->regs[rd] = __builtin_bswap32(as->regs[rd]);
         }
     }
@@ -388,7 +388,7 @@ void execute_push(struct arm_state *as, uint32_t iw)
             printf("\n base value: 0x%X\n", modified_base_value);
             fflush(stdout);
 
-            memcpy(read_mem(modified_base_value, as), &as->regs[i], 4);
+            memcpy(Mem_Resolve(modified_base_value, as), &as->regs[i], 4);
             //Check p bit
             if (p_bit == 0) {
                 //Check u bit
@@ -433,7 +433,7 @@ void execute_pop(struct arm_state *as, uint32_t iw)
                     modified_base_value -= offset_value;
                 }
             }
-            memcpy(&as->regs[i], read_mem(modified_base_value, as), 4);
+            memcpy(&as->regs[i], Mem_Resolve(modified_base_value, as), 4);
             //Check p bit
             if (p_bit == 0) {
                 //Check u bit
@@ -457,7 +457,7 @@ void execute_pop(struct arm_state *as, uint32_t iw)
 int arm_state_execute_one(struct arm_state *as)
 {
     uint32_t iw;
-    memcpy(&iw, read_mem(as->regs[PC], as), 4);
+    memcpy(&iw, Mem_Resolve(as->regs[PC], as), 4);
     iw = __builtin_bswap32(iw);
     int ret = 0;
 
