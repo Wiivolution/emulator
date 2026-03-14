@@ -92,10 +92,12 @@ uint8_t* read_mem(uint32_t location, arm_state *as) {
                 return (uint8_t*)(as->memory.MEM2 + (location - Mem_Table[i].MMU_Addr_Start));
             } else if(Mem_Table[i].Mem == ARM_SRAM_A || Mem_Table[i].Mem == ARM_SRAM_B) {
                 return resolve_sram(location, as, i);
+            } else if(Mem_Table[i].Mem == REGS) {
+                return (uint8_t*)(as->HW_regs + (location - Mem_Table[i].MMU_Addr_Start));
             }
         }
     }
-    printf("\nAddress invalid! | location: 0x%X ", location);
+    printf("\nAddress invalid! | location: 0x%X \n", location);
     fflush(stdout);
     free_memory(&as->memory);
     exit(-1);
