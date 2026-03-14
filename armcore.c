@@ -298,13 +298,16 @@ void execute_single_data_transfer_instruction(struct arm_state *as, uint32_t iw)
     if (p_bit == 1) {
         //Check u bit
         if (u_bit == 1) {
-            modified_base_value += 8 + offset_value; 
+            modified_base_value += offset_value; 
         }
         else {
             modified_base_value -= offset_value;
         }
     }
 
+    if(rn == PC) {
+        modified_base_value += 8;
+    }
 
     printf("\n Modified base value: 0x%X | offset value: 0x%X", modified_base_value, offset_value);
     arm_state_print(as);
