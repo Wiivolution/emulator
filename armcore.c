@@ -33,11 +33,12 @@
 
 #define NANO_PER_SEC 1000000000.0
 
-#include "armemu.h"
+extern uint8_t* read_mem(uint32_t location, void* as);
 
-uint8_t* read_mem(uint32_t location, struct arm_state *as);
+#include "armcore.h"
+#include "memory.h"
 
-struct arm_state *arm_state_new(size_t mem_size, size_t program_loc, size_t entrypoint,
+struct arm_state *arm_state_new(size_t program_loc, size_t entrypoint,
                                 uint32_t *program, size_t program_size,
                                 uint32_t arg0, uint32_t arg1,
                                 uint32_t arg2, uint32_t arg3)
@@ -51,60 +52,45 @@ struct arm_state *arm_state_new(size_t mem_size, size_t program_loc, size_t entr
         exit(-1);
     }
 
-    as->stack = (uint8_t *) malloc(STACK_SIZE);
+    printf("Initializing Memory...");
 
-    if (as->stack == NULL) {
-        printf("malloc() failed, exiting.\n");
+    if(init_memory(&as->memory) < 0) {
+        printf("\nmemory init failed!");
         exit(-1);
-    }
+    } 
 
-    as->memory = (uint8_t *) malloc(mem_size);
-    if(as->memory == NULL) {
-        printf("Failed memory allocation! Requested size : 0x%8X", mem_size);
-        exit(-1);
-    }
-    as->mem_size = mem_size;
-    if(mem_size < program_loc + program_size) {
-        printf("Can't write program to mem!");
-        exit(-1);
-    }
-    
-    memcpy(&as->memory[program_loc], program, program_size);
-    
+    printf("Done.\n");
+    printf("Putting program.bin into address 0x%X| Program size: 0x%X\n", read_mem(program_loc, as), program_size);
+    fflush(stdout);
+
+    memcpy(read_mem(program_loc, as), program, program_size);
+
     // Initialize all registers to zero.
     as->cpsr = 0;
     for (i = 0; i < NREGS; i++) {
         as->regs[i] = 0;
     }
 
-    as->regs[PC] = (unsigned int) entrypoint;
-    as->regs[SP] = (unsigned int) as->stack + STACK_SIZE;
+    as->regs[PC] = 0xFFFF0040;
     
     as->regs[0] = arg0;
     as->regs[1] = arg1;
     as->regs[2] = arg2;
     as->regs[3] = arg3;
 
-    // Inititalize all the counts to 0
-    as->computational_count = 0;
-    as->memory_count = 0;
-    as->branch_count = 0;
-
     return as;
 }
 
 void arm_state_free(struct arm_state *as)
 {
-    free(as->stack);
-    free(as->memory);
+    free_memory(&as->memory);
     free(as);
 }
 
-void arm_state_print(struct arm_state *as, uint32_t emu_result)
+void arm_state_print(struct arm_state *as)
 {
     int i;
     
-    printf("stack size = %d\n", STACK_SIZE);
     printf("Register values after execution:\n");
     for (i = 0; i < NREGS; i++) {
         printf("r%d = (%X) %d\n", i, as->regs[i], (int) as->regs[i]);
@@ -114,16 +100,6 @@ void arm_state_print(struct arm_state *as, uint32_t emu_result)
     
     printf("Data at PC : 0x%X\n", __builtin_bswap32(pcdata));
     printf("cpsr: 0x%x\n", as->cpsr);
-    printf("Total Instructions Executed: %d\n", (as->computational_count+as->memory_count+as->branch_count));
-    printf("Total Computational Instructions Executed: %d\n", as->computational_count);
-    printf("Total Memory Instructions Executed: %d\n", as->memory_count);
-    printf("Total Branch Instructions Executed: %d\n", as->branch_count);
-    printf("ARM Emulator Result: %d\n", emu_result);
-
-}
-
-uint8_t* read_mem(uint32_t location, struct arm_state *as) {
-    return &as->memory[location - as->mem_offset];
 }
 
 void set_cpsr_flags(struct arm_state *as, int result, long long result_long) 
@@ -187,6 +163,11 @@ bool iw_is_data_processing_instruction(uint32_t iw)
     return ((iw >> 26) & 0b11) == 0;
 }
 
+uint32_t _rotr(uint32_t value, int shift) {
+    if(shift == 0) return value;
+    return (value << (24 - shift));
+}
+
 void execute_data_processing_instruction(struct arm_state *as, uint32_t iw)
 {    
     uint32_t rm_value;
@@ -195,15 +176,19 @@ void execute_data_processing_instruction(struct arm_state *as, uint32_t iw)
     uint32_t s_bit = (iw >> 20) & 0b1;
     uint32_t rd = (iw >> 12) & 0xF;
     uint32_t rn = (iw >> 16) & 0xF;
+    uint8_t rotate = (iw >> 8) & 0xF;
     int result;
     long long result_long;
 
     if (i_bit == 1) {
-        rm_value = iw & 0xFF;
+        rm_value = _rotr(iw & 0xFF, rotate);
+        printf("base value: 0x%X | rotate: 0x%X | rm_value: 0x%X", iw & 0xFF, rotate, rm_value);
     }
     else {
-        rm_value = as->regs[(iw & 0xF)];
+        rm_value = _rotr(as->regs[(iw & 0xF)], rotate);
+        printf("base value: 0x%X | rotate: 0x%X | rm_value: 0x%X", iw & 0xFF, rotate, rm_value);
     }
+    
 
     switch(opcode) {
         case 2: //sub
@@ -259,7 +244,7 @@ bool iw_is_branch_instruction(uint32_t iw)
     return ((iw >> 25) & 0b111) == 0b101;
 }
 
-int execute_branch_instruction(struct arm_state *as, uint32_t iw) {
+void execute_branch_instruction(struct arm_state *as, uint32_t iw) {
     uint32_t signed_bit = (iw >> 23) & 0b1;
     uint32_t l_bit = (iw >> 24) & 0b1;
     uint32_t offset = iw & 0xFFFFFF;
@@ -279,13 +264,7 @@ int execute_branch_instruction(struct arm_state *as, uint32_t iw) {
         as->regs[LR] = as->regs[PC] + 4;
     }
 
-    if(as->regs[PC] + destination + 8 < (as->mem_size + as->mem_offset)) {
-        as->regs[PC] += (destination + 8);
-    } else {
-        printf("Invalid branch!\n Abort...");
-        return -1;
-    }
-    return 0;
+    as->regs[PC] += (destination + 8);
 }
 
 bool iw_is_single_data_transfer_instruction(uint32_t iw)
@@ -295,7 +274,7 @@ bool iw_is_single_data_transfer_instruction(uint32_t iw)
 
 void execute_single_data_transfer_instruction(struct arm_state *as, uint32_t iw)
 {
-    uint32_t rd = (iw>>12) & 0xF;
+    uint8_t rd = (iw>>12) & 0xF;
     uint32_t rn = (iw>>16) & 0xF;
     uint32_t l_bit = (iw>>20) & 0b1;
     uint32_t w_bit = (iw>>21) & 0b1;
@@ -318,7 +297,7 @@ void execute_single_data_transfer_instruction(struct arm_state *as, uint32_t iw)
     if (p_bit == 1) {
         //Check u bit
         if (u_bit == 1) {
-            modified_base_value += offset_value; 
+            modified_base_value += offset_value + 8; 
         }
         else {
             modified_base_value -= offset_value;
@@ -326,22 +305,27 @@ void execute_single_data_transfer_instruction(struct arm_state *as, uint32_t iw)
     }
 
 
-    printf("\n Modified base value: %d", modified_base_value);
+    printf("\n Modified base value: 0x%X | offset value: 0x%X", modified_base_value, offset_value);
+    arm_state_print(as);
+    fflush(stdout);
     //Check b bit
     if (b_bit == 1) {
         // Check l bit
         if (l_bit == 1) {
             memcpy(&as->regs[rd], read_mem(modified_base_value, as), 4); //ldrb
+            as->regs[rd] = __builtin_bswap32(as->regs[rd]);
         }
     }
     else {
         //Check l bit
         if (l_bit == 1) {
             memcpy(&as->regs[rd], read_mem(modified_base_value, as), 4); //ldr
+            as->regs[rd] = __builtin_bswap32(as->regs[rd]);
         }
         else {
-            memcpy(read_mem(modified_base_value, as), &as->regs[rd], 4);
-            *read_mem(modified_base_value, as) = as->regs[rd]; //str
+            as->regs[rd] = __builtin_bswap32(as->regs[rd]);
+            memcpy(read_mem(modified_base_value, as), &as->regs[rd], 4); // str
+            as->regs[rd] = __builtin_bswap32(as->regs[rd]);
         }
     }
 
@@ -392,13 +376,16 @@ void execute_push(struct arm_state *as, uint32_t iw)
             if (p_bit == 1) {
                 //Check u bit
                 if (u_bit == 1) {
-                    modified_base_value += offset_value;
+                    modified_base_value += offset_value;        
                 }
                 else {
                     modified_base_value -= offset_value;
                 }
             }
-            *read_mem(modified_base_value, as) = as->regs[i];
+            printf("\n base value: 0x%X\n", modified_base_value);
+            fflush(stdout);
+
+            memcpy(read_mem(modified_base_value, as), &as->regs[i], 4);
             //Check p bit
             if (p_bit == 0) {
                 //Check u bit
@@ -471,39 +458,33 @@ int arm_state_execute_one(struct arm_state *as)
     iw = __builtin_bswap32(iw);
     int ret = 0;
 
-    printf("\nr3: %d | PC: %d | OP: 0x%X        ", as->regs[3], as->regs[PC], iw);
+    printf("\nSP: 0x%X | PC: 0x%X | OP: 0x%X        ", as->regs[SP], as->regs[PC], iw);
 
     if (iw_is_bx_instruction(iw)) {
-        as->branch_count++;
         if (check_cpsr_flags(as, iw)) {
             execute_bx_instruction(as, iw);
         }
     } else if (iw_is_branch_instruction(iw)) {
-        as->branch_count++;
         if (check_cpsr_flags(as, iw)) {
-            ret = execute_branch_instruction(as, iw);
+            execute_branch_instruction(as, iw);
         }
         else {
             as->regs[PC] += 4;
         }
     } else if (iw_is_data_processing_instruction(iw)) {
-        as->computational_count++;
         if (check_cpsr_flags(as, iw)) {
             execute_data_processing_instruction(as, iw);
         }
         as->regs[PC] += 4;
     } else if (iw_is_single_data_transfer_instruction(iw)) {
-        as->memory_count++;
         if (check_cpsr_flags(as, iw)) {
             execute_single_data_transfer_instruction(as, iw);
         }
     } else if (iw_is_push(iw)) {
-        as->memory_count++;
         if (check_cpsr_flags(as, iw)) {
             execute_push(as, iw);
         }
     } else if (iw_is_pop(iw)) {
-        as->memory_count++;
         if (check_cpsr_flags(as, iw)) {
             execute_pop(as, iw);
         }
@@ -515,7 +496,7 @@ int arm_state_execute_one(struct arm_state *as)
 
 uint32_t arm_state_execute(struct arm_state *as)
 {
-    while (as->regs[PC] < (as->mem_size + as->mem_offset)) {
+    while (1) {
         int ret = arm_state_execute_one(as);
         if(ret != 0) {
             printf("BAD/UNIMPLEMENTED Instuction!");
@@ -532,46 +513,19 @@ uint32_t arm_state_execute(struct arm_state *as)
 void execute_program(uint32_t *program, uint32_t program_size) 
 {
     struct arm_state *as;
-    uint32_t assembler_result, emu_result;
-
     struct timespec start, end;
 
-    as = arm_state_new(8192, 0, 0xFFFF0040, program, program_size, 0, 0, 0, 0);
-    as->mem_offset = 0xFFFF0000;
-    arm_state_print(as, emu_result);
+    as = arm_state_new(0xFFFF0000, 0xFFFF0040, program, program_size, 0, 0, 0, 0);
+    arm_state_print(as);
     clock_gettime(CLOCK_MONOTONIC, &start);
-    emu_result = arm_state_execute(as);
+    arm_state_execute(as);
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     uint32_t time_spent = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec);
 
     printf("\n-----------------executing program --------------------\n");
-    arm_state_print(as, emu_result);
+    arm_state_print(as);
     printf("\nExecution time : %dns", time_spent);
     //printf("\nMIPS : %lld\n\n", time_spent / (as->computational_count+as->memory_count+as->branch_count) / 1000);
     arm_state_free(as);    
-}
-
-int main(int argc, char **argv)
-{
-
-    FILE* fd = fopen("program.bin", "rb");
-    if(!fd) {
-        printf("\nError opening file!\n");
-        return -1;
-    }
-    fseek(fd, 0, SEEK_END);
-    uint32_t size = ftell(fd);
-    if(!size) {
-        printf("\nFile size is 0! %d\n", size);
-        return -1;
-    }
-    fseek(fd, 0, SEEK_SET);
-    uint32_t program[size / 4];
-    fread(program, 1, size, fd);
-    printf("\n Size = %d\n", size);
-
-    execute_program(program, size);
-    
-    return 0;
 }

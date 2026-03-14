@@ -1,12 +1,11 @@
 PROGS = armemu 
 
+CFILES = armcore.c memory.c dev.c main.c
+
 all : ${PROGS}
 
-%.o : %.bin
-	$(bin2o) -i $< -o $@
-
-armemu : armemu.c
-	gcc -o armemu armemu.c
+armemu : ${CFILES}
+	gcc -o armemu ${CFILES}
 
 test : armemu
 	./armemu

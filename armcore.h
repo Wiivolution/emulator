@@ -1,7 +1,7 @@
 /*
     Starmulator - Low Level Wii IOP Emulator
 
-    armemu.c - CPU Core
+    armcore.h - CPU Core
     
     Copyright (C) 2026 Abdelali221
 
@@ -19,14 +19,15 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _ARMEMU_H_
-#define _ARMEMU_H_
+#ifndef _ARMCORE_H_
+#define _ARMCORE_H_
+
+#include "memory.h"
 
 #define NREGS 16
 #define SP 13
 #define LR 14 
 #define PC 15 
-#define STACK_SIZE 1024
 
 typedef struct vectortable {
     uint32_t Reset;
@@ -42,13 +43,10 @@ typedef struct vectortable {
 typedef struct arm_state {
     uint32_t regs[NREGS];
     uint32_t cpsr;
-    uint8_t  *stack;
-    uint8_t  *memory;
-    uint32_t mem_size;
-    uint64_t mem_offset;
-    uint32_t computational_count;
-    uint32_t memory_count;
-    uint32_t branch_count;
+    Memory   memory;
+    uint32_t HW_regs[0x400];
 } arm_state;
+
+void execute_program(uint32_t *program, uint32_t program_size);
 
 #endif
