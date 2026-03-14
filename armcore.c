@@ -145,15 +145,36 @@ int check_cpsr_flags(struct arm_state *as, uint32_t iw)
 
     //check if the operation can be executed
     switch (condition) {
-        case 0: //EQ
+        case 0b0000: //EQ
             return ((as->cpsr >> 30) & 0b1) == 1;
-        case 1: //NE
+        case 0b0001: //NE
             return ((as->cpsr >> 30) & 0b1) == 0;
-        case 11: //LT
+        case 0b0010:
+            return (as->cpsr & C_FLAG);
+        case 0b0011:
+            return !(as->cpsr & C_FLAG);
+        case 0b0100:
+            return (as->cpsr & N_FLAG);
+        case 0b0101:
+            return !(as->cpsr & N_FLAG);
+        case 0b0110:
+            return (as->cpsr & V_FLAG);
+        case 0b0111:
+            return !(as->cpsr & V_FLAG);
+        case 0b1000:
+            return (as->cpsr & C_FLAG) && !(as->cpsr & Z_FLAG);
+        case 0b1001:
+            return !(as->cpsr & C_FLAG) || (as->cpsr & Z_FLAG);
+        case 0b1010:
+            return (as->cpsr & C_FLAG) && !(as->cpsr & Z_FLAG);
+        case 0b1011: //LT
             return ((as->cpsr >> 28) & 0b1) != ((as->cpsr >> 31) & 0b1);
-        case 12: //GT
+        case 0b1100: //GT
             return (((as->cpsr >> 30) & 0b1) == 0) && (((as->cpsr >> 31) & 0b1) == ((as->cpsr >> 28) & 0b1));
-        case 14: //AL
+        case 0b1101: //GT
+            return (((as->cpsr >> 30) & 0b1) == 1) && (((as->cpsr >> 31) & 0b1) != ((as->cpsr >> 28) & 0b1));
+
+        case 0b1110: //AL
             return true;
     }
 }
@@ -496,7 +517,7 @@ int arm_state_execute_one(struct arm_state *as)
     }
     return ret;
 }
-
+uint32_t instructions_executed = 0;
 uint32_t arm_state_execute(struct arm_state *as)
 {
     while (1) {
@@ -504,10 +525,12 @@ uint32_t arm_state_execute(struct arm_state *as)
         if(ret != 0) {
             printf("BAD/UNIMPLEMENTED Instuction!");
             fflush(stdout);
+            sleep(1);
             break;
         }
         fflush(stdout);
-        usleep(500000);
+        usleep(200000);
+        instructions_executed++;
     }
 
     return as->regs[0];
@@ -529,6 +552,6 @@ void execute_program(uint32_t *program, uint32_t program_size)
     printf("\n-----------------executing program --------------------\n");
     arm_state_print(as);
     printf("\nExecution time : %dns", time_spent);
-    //printf("\nMIPS : %lld\n\n", time_spent / (as->computational_count+as->memory_count+as->branch_count) / 1000);
+    printf("\nKIPS : %lld\n\n", 1000000 / (time_spent / instructions_executed));
     arm_state_free(as);    
 }

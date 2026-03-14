@@ -29,6 +29,11 @@
 #define LR 14 
 #define PC 15 
 
+#define V_FLAG 0x10000000
+#define C_FLAG 0x20000000
+#define Z_FLAG 0x40000000
+#define N_FLAG 0x80000000
+
 typedef struct vectortable {
     uint32_t Reset;
     uint32_t Undef_instr;
