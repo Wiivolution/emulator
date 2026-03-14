@@ -163,9 +163,9 @@ bool iw_is_data_processing_instruction(uint32_t iw)
     return ((iw >> 26) & 0b11) == 0;
 }
 
-uint32_t _rotr(uint32_t value, int shift) {
+uint32_t _rot(uint32_t value, int shift) {
     if(shift == 0) return value;
-    return (value << (24 - shift));
+    return (value << (32 - shift));
 }
 
 void execute_data_processing_instruction(struct arm_state *as, uint32_t iw)
@@ -181,12 +181,12 @@ void execute_data_processing_instruction(struct arm_state *as, uint32_t iw)
     long long result_long;
 
     if (i_bit == 1) {
-        rm_value = _rotr(iw & 0xFF, rotate);
+        rm_value = _rot(iw & 0xFF, rotate * 2);
         printf("base value: 0x%X | rotate: 0x%X | rm_value: 0x%X", iw & 0xFF, rotate, rm_value);
     }
     else {
-        rm_value = _rotr(as->regs[(iw & 0xF)], rotate);
-        printf("base value: 0x%X | rotate: 0x%X | rm_value: 0x%X", iw & 0xFF, rotate, rm_value);
+        rm_value = as->regs[(iw & 0xF)];
+        printf("base value: 0x%X | rm_value: 0x%X", iw & 0xFF, rotate, rm_value);
     }
     
 
@@ -198,6 +198,7 @@ void execute_data_processing_instruction(struct arm_state *as, uint32_t iw)
             break;
         case 4: //add
             as->regs[rd] = as->regs[rn] + rm_value;
+            printf(" | rd: 0x%X", as->regs[rd]);
             result_long = (long long) as->regs[rn] + (long long) rm_value;
             result = as->regs[rd];
             break;
@@ -283,7 +284,7 @@ void execute_single_data_transfer_instruction(struct arm_state *as, uint32_t iw)
     uint32_t p_bit = (iw>>24) & 0b1;
     uint32_t i_bit = (iw>>25) & 0b1;
     uint32_t modified_base_value = as->regs[rn];
-    uint32_t offset_value;
+    uint16_t offset_value;
 
     //Check i bit
     if (i_bit == 1) {
@@ -297,7 +298,7 @@ void execute_single_data_transfer_instruction(struct arm_state *as, uint32_t iw)
     if (p_bit == 1) {
         //Check u bit
         if (u_bit == 1) {
-            modified_base_value += offset_value + 8; 
+            modified_base_value += 8 + offset_value; 
         }
         else {
             modified_base_value -= offset_value;
@@ -312,8 +313,7 @@ void execute_single_data_transfer_instruction(struct arm_state *as, uint32_t iw)
     if (b_bit == 1) {
         // Check l bit
         if (l_bit == 1) {
-            memcpy(&as->regs[rd], read_mem(modified_base_value, as), 4); //ldrb
-            as->regs[rd] = __builtin_bswap32(as->regs[rd]);
+            memcpy(&as->regs[rd], read_mem(modified_base_value, as), 1); //ldrb
         }
     }
     else {
