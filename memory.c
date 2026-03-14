@@ -72,32 +72,32 @@ int free_memory(Memory* mem) {
     return 0;    
 }
 
-uint8_t* resolve_sram(uint32_t location, arm_state *as, uint8_t i) {
+uint8_t* resolve_sram(uint32_t addr, arm_state *as, uint8_t i) {
     if(!(as->HW_regs[HW_SRNPROT] & 0x20)) {
         printf("\nMemory range id: %d", i);
-        return (uint8_t*)(as->memory.SRAM + (location - Mem_Table[i].MMU_Addr_Start));
+        return (uint8_t*)(as->memory.SRAM + (addr - Mem_Table[i].MMU_Addr_Start));
     } else {
-        return (uint8_t*)(as->memory.SRAM + (location - Mem_Table[i].MMU_Addr_Start));
+        return (uint8_t*)(as->memory.SRAM + (addr - Mem_Table[i].MMU_Addr_Start));
     }
 }
 
-uint8_t* read_mem(uint32_t location, arm_state *as) {
+uint8_t* read_mem(uint32_t addr, arm_state *as) {
     for(int i = 0; i < 9; i++) {
-        if(location >= Mem_Table[i].MMU_Addr_Start &&
-           location <= Mem_Table[i].MMU_Addr_End)
+        if(addr >= Mem_Table[i].MMU_Addr_Start &&
+           addr <= Mem_Table[i].MMU_Addr_End)
         {
             if(Mem_Table[i].Mem == MEM_1) {
-                return (uint8_t*)(as->memory.MEM1 + (location - Mem_Table[i].MMU_Addr_Start));
+                return (uint8_t*)(as->memory.MEM1 + (addr - Mem_Table[i].MMU_Addr_Start));
             } else if(Mem_Table[i].Mem == MEM_2) {
-                return (uint8_t*)(as->memory.MEM2 + (location - Mem_Table[i].MMU_Addr_Start));
+                return (uint8_t*)(as->memory.MEM2 + (addr - Mem_Table[i].MMU_Addr_Start));
             } else if(Mem_Table[i].Mem == ARM_SRAM_A || Mem_Table[i].Mem == ARM_SRAM_B) {
-                return resolve_sram(location, as, i);
+                return resolve_sram(addr, as, i);
             } else if(Mem_Table[i].Mem == REGS) {
-                return (uint8_t*)(as->HW_regs + (location - Mem_Table[i].MMU_Addr_Start));
+                return (uint8_t*)(as->HW_regs + (addr - Mem_Table[i].MMU_Addr_Start));
             }
         }
     }
-    printf("\nAddress invalid! | location: 0x%X \n", location);
+    printf("\nAddress invalid! | addr: 0x%X \n", addr);
     fflush(stdout);
     free_memory(&as->memory);
     exit(-1);

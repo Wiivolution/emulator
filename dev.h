@@ -23,6 +23,7 @@
 #define _DEV_H_
 
 typedef struct device {
+    uint8_t* ptr;
     uint32_t regs_addr;
     uint32_t regs_length;
     uint32_t IRQ;
