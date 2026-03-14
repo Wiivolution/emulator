@@ -27,7 +27,10 @@
 #include <time.h>
 
 #include "armcore.h"
+#include "dev.h"
 #include "aes.h"
+#include "sha.h"
+#include "nand.h"
 
 int main(int argc, char **argv)
 {
@@ -48,6 +51,14 @@ int main(int argc, char **argv)
     fread(program, 1, size, fd);
     printf("\n Size = %d\n", size);
     AES_Init();
+    SHA_Init();
+    NAND_Init();
+    device* dev_list = (device*)Dev_GetDeviceList();
+    int dev_count = Dev_GetDeviceCount();
+    for(int i = 0; i < dev_count; i++) {
+        printf("\n Dev %d = ptr: 0x%X | element ptr: 0x%X ", dev_list[i].ID,
+                                         dev_list[i].ptr, &dev_list[i].ID);
+    }
     execute_program(program, size);
     
     return 0;
