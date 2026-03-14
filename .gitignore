@@ -36,8 +36,10 @@
 *.exe
 *.out
 *.app
+armemu
 
 # debug information files
 *.dwo
 *.bin
 *.elf
+
