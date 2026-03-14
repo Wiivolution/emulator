@@ -32,12 +32,16 @@
 #include "sha.h"
 #include "nand.h"
 
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
-
-    FILE* fd = fopen("program.bin", "rb");
+    char* file_name = argv[1];
+    if (file_name == NULL) {
+        printf("Usage: ./armemu <file_name>\n");
+        return -1;
+    }
+    FILE* fd = fopen(file_name, "rb");
     if(!fd) {
-        printf("\nError opening file!\n");
+        printf("\nError opening file %s!\n", file_name);
         return -1;
     }
     fseek(fd, 0, SEEK_END);
