@@ -39,5 +39,7 @@ int AES_Init() {
 }
 
 int AES_Deinit() {
-
+    Dev_RemoveDevice(AES.ID);
+    free(AES_Regs);
+    return 0;
 }

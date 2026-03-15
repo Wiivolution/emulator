@@ -34,5 +34,6 @@ uint8_t* Dev_ResolveRegs(uint32_t addr);
 int Dev_GetDeviceCount();
 device* Dev_GetDeviceList();
 int Dev_AddDevice(device* dev);
+int Dev_RemoveDevice(uint32_t ID);
 
 #endif

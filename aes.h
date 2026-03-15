@@ -23,5 +23,6 @@
 #define _AES_H_
 
 int AES_Init();
+int AES_Deinit();
 
 #endif

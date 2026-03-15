@@ -23,5 +23,6 @@
 #define _SHA_H_
 
 int SHA_Init();
+int SHA_Deinit();
 
 #endif

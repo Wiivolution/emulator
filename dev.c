@@ -30,7 +30,7 @@ uint32_t Devices_count = 0;
 
 int Dev_AddDevice(device* dev) {
     Devices_count++;
-    uint32_t* temp = malloc(sizeof(device) * Devices_count);
+    uint8_t* temp = malloc(sizeof(device) * Devices_count);
     if(temp == NULL) {
         printf("\nDev mem allocation failed!");
         Devices_count--;
@@ -41,7 +41,7 @@ int Dev_AddDevice(device* dev) {
         free(Dev_Table);
     }
     dev->ID = Devices_count;
-    memcpy(&(temp[(sizeof(device) * (Devices_count - 1)) / 4]), dev, sizeof(device));
+    memcpy(&(temp[(sizeof(device) * (Devices_count - 1))]), dev, sizeof(device));
     Dev_Table = (device*)temp;
     return 0;
 }
@@ -55,22 +55,23 @@ device* Dev_GetDeviceList() {
 }
 
 int Dev_RemoveDevice(uint32_t ID) {
-    /*
-    Devices_count++;
-    device* temp = malloc(sizeof(device) * Devices_count);
-    if(temp == NULL) {
-        printf("\nDev mem allocation failed!");
-        Devices_count--;
-        return -1;
+    for(int i = 0; i < Devices_count; i++) {
+        if(Dev_Table[i].ID == ID) {
+            Devices_count--;
+            uint8_t* temp = malloc(sizeof(device) * Devices_count);
+            if(temp == NULL) {
+                Devices_count++;
+                printf("\ntemp buffer malloc failed!");
+                return -1;
+            }
+            memcpy(temp, Dev_Table, sizeof(device) * i);
+            memcpy(temp + sizeof(device) * i, Dev_Table + sizeof(device) * (i + 1), sizeof(device) * (Devices_count - i));
+            free(Dev_Table);
+            Dev_Table = (device*)temp;
+            return 0;
+        }
     }
-    if(Dev_Table != NULL) {
-        memcpy(temp, Dev_Table, sizeof(device) * (Devices_count - 1));
-        free(Dev_Table);
-    }
-    memcpy(temp + sizeof(device) * (Devices_count - 1), dev, sizeof(device));
-    Dev_Table = temp;
-    */
-    return 0;
+    return -1;
 }
 
 uint8_t* Dev_ResolveRegs(uint32_t addr) {

@@ -39,5 +39,7 @@ int NAND_Init() {
 }
 
 int NAND_Deinit() {
-
+    Dev_RemoveDevice(NAND.ID);
+    free(NAND_Regs);
+    return 0;
 }

@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "dev.h"
 
 uint8_t* SHA_Regs;
@@ -36,9 +37,12 @@ int SHA_Init() {
     SHA.ptr = SHA_Regs;
     printf("\n SHA.ptr: 0x%X", SHA.ptr);
     Dev_AddDevice(&SHA);
+
     return 0;
 }
 
 int SHA_Deinit() {
-
+    Dev_RemoveDevice(SHA.ID);
+    free(SHA_Regs);
+    return 0;
 }

@@ -29,6 +29,19 @@
 #define LR 14 
 #define PC 15 
 
+#define MODE_USER 0b10000
+#define MODE_FIQ  0b10001
+#define MODE_IRQ  0b10010
+#define MODE_SPVS 0b10011
+#define MODE_ABRT 0b10111
+#define MODE_UNDF 0b11011
+#define MODE_SYST 0b11111
+
+#define T_FLAG 0x10
+#define F_FLAG 0x20
+#define I_FLAG 0x40
+#define A_FLAG 0x80
+#define E_FLAG 0x100
 #define V_FLAG 0x10000000
 #define C_FLAG 0x20000000
 #define Z_FLAG 0x40000000

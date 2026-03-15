@@ -23,5 +23,6 @@
 #define _NAND_H_
 
 int NAND_Init();
+int NAND_Deinit();
 
 #endif
