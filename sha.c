@@ -23,25 +23,37 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 #include "dev.h"
 
 uint8_t* SHA_Regs;
+pthread_t SHA_thread;
 
 device SHA = {
     0, NULL, 0xD02FFFF, 0x1c, 2
 };
+
+void* SHA_EventHandler(void* args) {
+    while(1) {
+        if(SHA_Regs[0] != 0) {
+            printf("\nCMD: 0x%X", SHA_Regs[0]);
+            SHA_Regs[0] = 0;
+        }
+    }
+}
 
 int SHA_Init() {
     SHA_Regs = malloc(0x1c);
     SHA.ptr = SHA_Regs;
     printf("\n SHA.ptr: 0x%X", SHA.ptr);
     Dev_AddDevice(&SHA);
-
+    pthread_create(&SHA_thread, NULL, SHA_EventHandler, NULL);
     return 0;
 }
 
 int SHA_Deinit() {
+    pthread_join(SHA_thread, NULL);
     Dev_RemoveDevice(SHA.ID);
     free(SHA_Regs);
     return 0;

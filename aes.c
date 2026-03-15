@@ -23,22 +23,36 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
+
 #include "dev.h"
 
 uint8_t* AES_Regs;
+pthread_t AES_thread;
 
 device AES = {
     0, NULL, 0x0d020000, 0x14, 2
 };
 
+void* AES_EventHandler(void* args) {
+    while(1) {
+        if(AES_Regs[0] != 0) {
+            printf("\nCMD: 0x%X", AES_Regs[0]);
+            AES_Regs[0] = 0;
+        }
+    }
+}
+
 int AES_Init() {
     AES_Regs = malloc(0x1c);
     AES.ptr = AES_Regs;
     Dev_AddDevice(&AES);
+    pthread_create(&AES_thread, NULL, AES_EventHandler, NULL);
     return 0;
 }
 
 int AES_Deinit() {
+    pthread_join(AES_thread, NULL);
     Dev_RemoveDevice(AES.ID);
     free(AES_Regs);
     return 0;
