@@ -62,6 +62,7 @@ struct arm_state *arm_state_new(size_t program_loc, size_t entrypoint,
     printf("Done.\n");
     printf("Putting program file into address 0x%X| Program size: 0x%X\n", Mem_Resolve(program_loc, as), program_size);
     fflush(stdout);
+    memset(as->HW_regs, 0, 0x400);
 
     memcpy(Mem_Resolve(program_loc, as), program, program_size);
 
@@ -100,6 +101,7 @@ void arm_state_print(struct arm_state *as)
     
     printf("Data at PC : 0x%X\n", __builtin_bswap32(pcdata));
     printf("cpsr: 0x%x\n", as->cpsr);
+    printf("DBG: 0x%X", *(uint32_t*)Mem_Resolve(0x0d8000e3, as));
 }
 
 void set_cpsr_flags(struct arm_state *as, int result, long long result_long) 
@@ -203,11 +205,9 @@ void execute_data_processing_instruction(struct arm_state *as, uint32_t iw)
 
     if (i_bit == 1) {
         rm_value = _rot(iw & 0xFF, rotate * 2);
-        printf("base value: 0x%X | rotate: 0x%X | rm_value: 0x%X", iw & 0xFF, rotate, rm_value);
     }
     else {
         rm_value = as->regs[(iw & 0xF)];
-        printf("base value: 0x%X | rm_value: 0x%X", iw & 0xFF, rotate, rm_value);
     }
     
 
@@ -219,7 +219,6 @@ void execute_data_processing_instruction(struct arm_state *as, uint32_t iw)
             break;
         case 4: //add
             as->regs[rd] = as->regs[rn] + rm_value;
-            printf(" | rd: 0x%X", as->regs[rd]);
             result_long = (long long) as->regs[rn] + (long long) rm_value;
             result = as->regs[rd];
             break;
@@ -249,9 +248,9 @@ void execute_data_processing_instruction(struct arm_state *as, uint32_t iw)
     }
 }
 
-bool iw_is_bx_instruction(uint32_t iw)
+bool iw_is_bx_instruction(uint32_t iw) //
 {
-    return ((iw >> 4) & 0xFFFFFF) == 0b000100101111111111110001;
+    return ((iw >> 4) & 0xFFFFFF) == 0x12FFF1;
 }
 
 void execute_bx_instruction(struct arm_state *as, uint32_t iw)
@@ -259,6 +258,10 @@ void execute_bx_instruction(struct arm_state *as, uint32_t iw)
     uint32_t rn = iw & 0b1111;
 
     as->regs[PC] = as->regs[rn];
+    
+    if (iw & 0b1) {
+        as->regs[LR] = as->regs[PC] + 4;
+    }
 }
 
 bool iw_is_branch_instruction(uint32_t iw) 
@@ -330,9 +333,6 @@ void execute_single_data_transfer_instruction(struct arm_state *as, uint32_t iw)
         modified_base_value += 8;
     }
 
-    printf("\n Modified base value: 0x%X | offset value: 0x%X", modified_base_value, offset_value);
-    arm_state_print(as);
-    fflush(stdout);
     //Check b bit
     if (b_bit == 1) {
         // Check l bit
@@ -406,9 +406,6 @@ void execute_push(struct arm_state *as, uint32_t iw)
                     modified_base_value -= offset_value;
                 }
             }
-            printf("\n base value: 0x%X\n", modified_base_value);
-            fflush(stdout);
-
             memcpy(Mem_Resolve(modified_base_value, as), &as->regs[i], 4);
             //Check p bit
             if (p_bit == 0) {
@@ -487,6 +484,8 @@ int arm_state_execute_one(struct arm_state *as)
     if (iw_is_bx_instruction(iw)) {
         if (check_cpsr_flags(as, iw)) {
             execute_bx_instruction(as, iw);
+        } else {
+            as->regs[PC] += 4;
         }
     } else if (iw_is_branch_instruction(iw)) {
         if (check_cpsr_flags(as, iw)) {
@@ -503,33 +502,90 @@ int arm_state_execute_one(struct arm_state *as)
     } else if (iw_is_single_data_transfer_instruction(iw)) {
         if (check_cpsr_flags(as, iw)) {
             execute_single_data_transfer_instruction(as, iw);
+        } else {
+            as->regs[PC] += 4;
         }
     } else if (iw_is_push(iw)) {
         if (check_cpsr_flags(as, iw)) {
             execute_push(as, iw);
+        } else {
+            as->regs[PC] += 4;
         }
     } else if (iw_is_pop(iw)) {
         if (check_cpsr_flags(as, iw)) {
             execute_pop(as, iw);
+        } else {
+            as->regs[PC] += 4;
         }
     } else {
         return -1;
     }
     return ret;
 }
+
+int thumb_state_execute_one(struct arm_state *as)
+{
+    uint16_t iw;
+    memcpy(&iw, Mem_Resolve(as->regs[PC], as), 2);
+    iw = __builtin_bswap16(iw);
+    int ret = 0;
+
+    //printf("\nSP: 0x%X | PC: 0x%X | OP: 0x%X        ", as->regs[SP], as->regs[PC], iw);
+
+    /*
+    if (thumb_iw_is_bx_instruction(iw)) {
+        if (thumb_check_cpsr_flags(as, iw)) {
+            thumb_execute_bx_instruction(as, iw);
+        }
+    } else if (thumb_iw_is_branch_instruction(iw)) {
+        if (thumb_check_cpsr_flags(as, iw)) {
+            execute_branch_instruction(as, iw);
+        }
+        else {
+            as->regs[PC] += 4;
+        }
+    } else if (thumb_iw_is_data_processing_instruction(iw)) {
+        if (thumb_check_cpsr_flags(as, iw)) {
+            thumb_execute_data_processing_instruction(as, iw);
+        }
+        as->regs[PC] += 4;
+    } else if (thumb_iw_is_single_data_transfer_instruction(iw)) {
+        if (thumb_check_cpsr_flags(as, iw)) {
+            thumb_execute_single_data_transfer_instruction(as, iw);
+        }
+    } else if (thumb_iw_is_push(iw)) {
+        if (thumb_check_cpsr_flags(as, iw)) {
+            thumb_execute_push(as, iw);
+        }
+    } else if (iw_is_pop(iw)) {
+        if (thumb_check_cpsr_flags(as, iw)) {
+            thumb_execute_pop(as, iw);
+        }
+    } else {
+        return -1;
+    }
+    */
+    return ret;
+}
+
 uint32_t instructions_executed = 0;
+
 uint32_t arm_state_execute(struct arm_state *as)
 {
-    while (1) {
-        int ret = arm_state_execute_one(as);
-        if(ret != 0) {
-            printf("BAD/UNIMPLEMENTED Instuction!");
-            fflush(stdout);
-            sleep(1);
-            break;
+    while (as->regs[PC] != 0xFFFF0594) {
+        if(!(as->cpsr & T_FLAG)) {
+            int ret = arm_state_execute_one(as);
+            if(ret != 0) {
+                printf("BAD/UNIMPLEMENTED Instuction!");
+                fflush(stdout);
+                sleep(1);
+                break;
+            }
+        } else {
+            thumb_state_execute_one(as);
         }
         fflush(stdout);
-        usleep(200000);
+        //usleep(20000);
         instructions_executed++;
     }
 
