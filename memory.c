@@ -38,6 +38,7 @@ MMU_Table Mem_Table[] = {
     0xFFFF0000, 0xFFFFFFFF, 0x00010000, 0x0001FFFF, ARM_SRAM_B,
     0x0D400000,	0x0D40FFFF, 0x00000000, 0x0000FFFF, ARM_SRAM_A,
     0x0D410000,	0x0D41FFFF, 0x00010000, 0x0001FFFF, ARM_SRAM_B,
+    0x0D000000,	0x0D00FFFF, 0x00000000, 0x0000FFFF, REGS,
     0x0D800000,	0x0D80FFFF, 0x00000000, 0x0000FFFF, REGS
 };
 
@@ -73,28 +74,28 @@ int Mem_free(Memory* mem) {
     return 0;    
 }
 
-uint8_t* Mem_ResolveSRAM(uint32_t addr, arm_state *as, uint8_t i) {
+void* Mem_ResolveSRAM(uint32_t addr, arm_state *as, uint8_t i) {
     if(!(as->HW_regs[HW_SRNPROT] & 0x20)) {
-        return (uint8_t*)(as->memory.SRAM + (addr - Mem_Table[i].MMU_Addr_Start));
+        return (as->memory.SRAM + (addr - Mem_Table[i].MMU_Addr_Start));
     } else {
-        return (uint8_t*)(as->memory.SRAM + (addr - Mem_Table[i].MMU_Addr_Start));
+        return (as->memory.SRAM + (addr - Mem_Table[i].MMU_Addr_Start));
     }
 }
 
-uint8_t* Mem_Resolve(uint32_t addr, arm_state *as) {
-    uint8_t* retaddr = NULL;
-    for(int i = 0; i < 9; i++) {
+void* Mem_Resolve(uint32_t addr, arm_state *as) {
+    void* retaddr = NULL;
+    for(int i = 0; i < 10; i++) {
         if(addr >= Mem_Table[i].MMU_Addr_Start &&
            addr <= Mem_Table[i].MMU_Addr_End)
         {
             if(Mem_Table[i].Mem == MEM_1) {
-                retaddr = (uint8_t*)(as->memory.MEM1 + (addr - Mem_Table[i].MMU_Addr_Start));
+                retaddr = (as->memory.MEM1 + (addr - Mem_Table[i].MMU_Addr_Start));
             } else if(Mem_Table[i].Mem == MEM_2) {
-                retaddr = (uint8_t*)(as->memory.MEM2 + (addr - Mem_Table[i].MMU_Addr_Start));
+                retaddr = (as->memory.MEM2 + (addr - Mem_Table[i].MMU_Addr_Start));
             } else if(Mem_Table[i].Mem == ARM_SRAM_A || Mem_Table[i].Mem == ARM_SRAM_B) {
                 retaddr = Mem_ResolveSRAM(addr, as, i);
             } else if(Mem_Table[i].Mem == REGS) {
-                retaddr = (uint8_t*)(as->HW_regs + (addr - Mem_Table[i].MMU_Addr_Start));
+                retaddr = &(as->HW_regs[(addr - Mem_Table[i].MMU_Addr_Start) / 4]);
             }
         }
     }
@@ -106,6 +107,7 @@ uint8_t* Mem_Resolve(uint32_t addr, arm_state *as) {
         return retaddr;
     }
     printf("\nAddress invalid! | addr: 0x%X \n", addr);
+    arm_state_print(as);
     fflush(stdout);
     Mem_free(&as->memory);
     exit(-1);

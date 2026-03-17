@@ -74,13 +74,12 @@ int Dev_RemoveDevice(uint32_t ID) {
     return -1;
 }
 
-uint8_t* Dev_ResolveRegs(uint32_t addr) {
+void* Dev_ResolveRegs(uint32_t addr) {
     for(int i = 0; i < Devices_count; i++) {
-        printf("\n Looking at device %d", i);
         if(addr >= Dev_Table[i].regs_addr &&
            addr <= Dev_Table[i].regs_addr + Dev_Table[i].regs_length)
         {
-            return (uint8_t*)(Dev_Table[i].ptr + (addr - Dev_Table[i].regs_addr));
+            return (Dev_Table[i].ptr + (addr - Dev_Table[i].regs_addr));
         }
     }
     return NULL;

@@ -24,13 +24,13 @@
 
 typedef struct device {
     uint32_t ID;
-    uint8_t* ptr;
+    void* ptr;
     uint32_t regs_addr;
     uint32_t regs_length;
     uint32_t IRQ;
 } device;
 
-uint8_t* Dev_ResolveRegs(uint32_t addr);
+void* Dev_ResolveRegs(uint32_t addr);
 int Dev_GetDeviceCount();
 device* Dev_GetDeviceList();
 int Dev_AddDevice(device* dev);
