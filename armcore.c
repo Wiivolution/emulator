@@ -29,14 +29,30 @@
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
-#include <time.h>
-
-#define NANO_PER_SEC 1000000000.0
-
-extern uint8_t* Mem_Resolve(uint32_t addr, void* as);
 
 #include "armcore.h"
 #include "memory.h"
+
+// Data-processing :
+
+#define DP_AND 0b0000
+#define DP_EOR 0b0001
+#define DP_SUB 0b0010
+#define DP_RSB 0b0011
+#define DP_ADD 0b0100
+#define DP_ADC 0b0101
+#define DP_SBC 0b0110
+#define DP_RSC 0b0111
+#define DP_TST 0b1000
+#define DP_TEQ 0b1001
+#define DP_CMP 0b1010
+#define DP_CMN 0b1011
+#define DP_ORR 0b1100
+#define DP_MOV 0b1101
+#define DP_BIC 0b1110
+#define DP_MVN 0b1111
+
+extern void* Mem_Resolve(uint32_t addr, void* as);
 
 struct arm_state *arm_state_new(size_t program_loc, size_t entrypoint,
                                 uint32_t *program, size_t program_size,
@@ -62,8 +78,7 @@ struct arm_state *arm_state_new(size_t program_loc, size_t entrypoint,
     printf("Done.\n");
     printf("Putting program file into address 0x%X| Program size: 0x%X\n", Mem_Resolve(program_loc, as), program_size);
     fflush(stdout);
-    memset(as->HW_regs, 0, 0x400);
-
+    memset(as->HW_regs, 0, 0x100);
     memcpy(Mem_Resolve(program_loc, as), program, program_size);
 
     // Initialize all registers to zero.
@@ -72,7 +87,7 @@ struct arm_state *arm_state_new(size_t program_loc, size_t entrypoint,
         as->regs[i] = 0;
     }
 
-    as->regs[PC] = 0xFFFF0040;
+    as->regs[PC] = entrypoint;
     
     as->regs[0] = arg0;
     as->regs[1] = arg1;
@@ -92,7 +107,7 @@ void arm_state_print(struct arm_state *as)
 {
     int i;
     
-    printf("Register values after execution:\n");
+    printf("\nRegister values after execution:\n");
     for (i = 0; i < NREGS; i++) {
         printf("r%d = (%X) %d\n", i, as->regs[i], (int) as->regs[i]);
     }
@@ -101,7 +116,7 @@ void arm_state_print(struct arm_state *as)
     
     printf("Data at PC : 0x%X\n", __builtin_bswap32(pcdata));
     printf("cpsr: 0x%x\n", as->cpsr);
-    printf("DBG: 0x%X", *(uint32_t*)Mem_Resolve(0x0d8000e3, as));
+    printf("\nGPIO: 0x%08X", __builtin_bswap32(*(uint32_t*)Mem_Resolve(0xd8000e0, as)));
 }
 
 void set_cpsr_flags(struct arm_state *as, int result, long long result_long) 
@@ -191,6 +206,11 @@ uint32_t _rot(uint32_t value, int shift) {
     return (value << (32 - shift));
 }
 
+uint32_t _rotl(uint32_t value, int shift) {
+    if(shift == 0) return value;
+    return (value << shift);
+}
+
 void execute_data_processing_instruction(struct arm_state *as, uint32_t iw)
 {    
     uint32_t rm_value;
@@ -205,42 +225,52 @@ void execute_data_processing_instruction(struct arm_state *as, uint32_t iw)
 
     if (i_bit == 1) {
         rm_value = _rot(iw & 0xFF, rotate * 2);
-    }
-    else {
-        rm_value = as->regs[(iw & 0xF)];
+    } else {
+        rm_value = _rotl(as->regs[(iw & 0xF)], (iw >> 7) & 0x1F);
     }
     
 
     switch(opcode) {
-        case 2: //sub
+        case DP_SUB: //sub
             as->regs[rd] = as->regs[rn] - rm_value;
             result_long = (long long) as->regs[rn] - (long long) rm_value;
             result = as->regs[rd];
-            break;
-        case 4: //add
+        break;
+        
+        case DP_ADD: //add
             as->regs[rd] = as->regs[rn] + rm_value;
             result_long = (long long) as->regs[rn] + (long long) rm_value;
             result = as->regs[rd];
-            break;
-        case 10: //cmp
+        break;
+        
+        case DP_ORR:
+            as->regs[rd] = as->regs[rn] ^ rm_value;
+            result_long = (long long) as->regs[rn] ^ (long long) rm_value;
+            result = as->regs[rd];
+        break;
+        
+        case DP_CMP:
             result = as->regs[rn] - rm_value;
             // printf("cmp %d to %d and the result is: %d\n", as->regs[rn], rm_value, result);
             result_long = (long long) as->regs[rn] - (long long) rm_value;
-            break;
-        case 11: //cmn
+        break;
+        
+        case DP_CMN: //cmn
             result = as->regs[rn] + rm_value;
             result_long = (long long) as->regs[rn] + (long long) rm_value;  
-            break;
-        case 13: //mov
+        break;
+
+        case DP_MOV: //mov
             as->regs[rd] = rm_value;
             result = as->regs[rd];
             result_long = (long long) as->regs[rd];
-            break;
-        case 15: //mvn
+        break;
+
+        case DP_MVN: //mvn
             as->regs[rd] = ~(rm_value);
             result = ~(rm_value);
             result_long = (long long) as->regs[rd];
-            break;
+        break;
     }
 
     if (s_bit == 1) {
@@ -288,6 +318,7 @@ void execute_branch_instruction(struct arm_state *as, uint32_t iw) {
     if (l_bit == 1) {  
         as->regs[LR] = as->regs[PC] + 4;
     }
+    
 
     as->regs[PC] += (destination + 8);
 }
@@ -338,9 +369,9 @@ void execute_single_data_transfer_instruction(struct arm_state *as, uint32_t iw)
         // Check l bit
         if (l_bit == 1) {
             memcpy(&as->regs[rd], Mem_Resolve(modified_base_value, as), 1); //ldrb
+            as->regs[rd] = __builtin_bswap32(as->regs[rd]);
         }
-    }
-    else {
+    } else {
         //Check l bit
         if (l_bit == 1) {
             memcpy(&as->regs[rd], Mem_Resolve(modified_base_value, as), 4); //ldr
@@ -479,7 +510,7 @@ int arm_state_execute_one(struct arm_state *as)
     iw = __builtin_bswap32(iw);
     int ret = 0;
 
-    printf("\nSP: 0x%X | PC: 0x%X | OP: 0x%X        ", as->regs[SP], as->regs[PC], iw);
+    arm_state_print(as);
 
     if (iw_is_bx_instruction(iw)) {
         if (check_cpsr_flags(as, iw)) {
@@ -572,7 +603,7 @@ uint32_t instructions_executed = 0;
 
 uint32_t arm_state_execute(struct arm_state *as)
 {
-    while (as->regs[PC] != 0xFFFF0594) {
+    while (as->regs[PC] != 0xFFFF0588) {
         if(!(as->cpsr & T_FLAG)) {
             int ret = arm_state_execute_one(as);
             if(ret != 0) {
@@ -585,7 +616,7 @@ uint32_t arm_state_execute(struct arm_state *as)
             thumb_state_execute_one(as);
         }
         fflush(stdout);
-        //usleep(20000);
+        usleep(200000);
         instructions_executed++;
     }
 
@@ -595,19 +626,11 @@ uint32_t arm_state_execute(struct arm_state *as)
 void execute_program(uint32_t *program, uint32_t program_size) 
 {
     struct arm_state *as;
-    struct timespec start, end;
 
-    as = arm_state_new(0xFFFF0000, 0xFFFF0040, program, program_size, 0, 0, 0, 0);
-    arm_state_print(as);
-    clock_gettime(CLOCK_MONOTONIC, &start);
+    as = arm_state_new(0xFFFF0000, 0xFFFF0000, program, program_size, 0, 0, 0, 0);
     arm_state_execute(as);
-    clock_gettime(CLOCK_MONOTONIC, &end);
-
-    uint32_t time_spent = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec);
 
     printf("\n-----------------executing program --------------------\n");
     arm_state_print(as);
-    printf("\nExecution time : %dns", time_spent);
-    printf("\nKIPS : %lld\n\n", 1000000 / (time_spent / instructions_executed));
     arm_state_free(as);    
 }

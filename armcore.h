@@ -62,9 +62,10 @@ typedef struct arm_state {
     uint32_t regs[NREGS];
     uint32_t cpsr;
     Memory   memory;
-    uint32_t HW_regs[0x400];
+    uint32_t HW_regs[0x100];
 } arm_state;
 
+void arm_state_print(struct arm_state *as);
 void execute_program(uint32_t *program, uint32_t program_size);
 
 #endif
