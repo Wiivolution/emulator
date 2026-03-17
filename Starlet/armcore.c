@@ -121,15 +121,12 @@ void arm_state_print(struct arm_state *as)
 
 void set_cpsr_flags(struct arm_state *as, int result, long long result_long) 
 {
-    //setting v flag
     if (result > 2147483647 || result < -2147483648) {
-        as->cpsr = as->cpsr | 0x10000000; //setting v to 1
-        // printf("v here\n");
-
+        as->cpsr = as->cpsr | 0x10000000;
     }
+
     else {
-        as->cpsr = as->cpsr & 0xEFFFFFFF; //setting v to 0
-        // printf("c here\n");
+        as->cpsr = as->cpsr & 0xEFFFFFFF;
     }
 
     //setting c flag

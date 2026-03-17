@@ -1,7 +1,7 @@
 /*
     Starmulator - Low Level Wii IOP Emulator
 
-    aes.c - AES Engine
+    main.c - Main program
     
     Copyright (C) 2026 Abdelali221
 
@@ -20,40 +20,44 @@
 */
 
 #include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
-#include <pthread.h>
+#include <unistd.h>
+#include <time.h>
 
+#include "armcore.h"
 #include "dev.h"
+#include "aes.h"
+#include "sha.h"
+#include "nand.h"
 
-uint8_t* AES_Regs;
-pthread_t AES_thread;
-
-device AES = {
-    0, NULL, 0x0d020000, 0x14, 2
-};
-
-void* AES_EventHandler(void* args) {
-    while(1) {
-        if(AES_Regs[0] != 0) {
-            printf("\nCMD: 0x%X", AES_Regs[0]);
-            AES_Regs[0] = 0;
-        }
+int main(int argc, char *argv[])
+{
+    char* file_name = argv[1];
+    if (file_name == NULL) {
+        printf("Usage: ./armemu <file_name>\n");
+        return -1;
     }
-}
-
-int AES_Init() {
-    AES_Regs = malloc(0x1c);
-    AES.ptr = AES_Regs;
-    Dev_AddDevice(&AES);
-    pthread_create(&AES_thread, NULL, AES_EventHandler, NULL);
-    return 0;
-}
-
-int AES_Deinit() {
-    pthread_join(AES_thread, NULL);
-    Dev_RemoveDevice(AES.ID);
-    free(AES_Regs);
+    FILE* fd = fopen(file_name, "rb");
+    if(!fd) {
+        printf("\nError opening file %s!\n", file_name);
+        return -1;
+    }
+    fseek(fd, 0, SEEK_END);
+    uint32_t size = ftell(fd);
+    if(!size) {
+        printf("\nFile size is 0! %d\n", size);
+        return -1;
+    }
+    fseek(fd, 0, SEEK_SET);
+    uint32_t program[size / 4];
+    fread(program, 1, size, fd);
+    printf("\n Size = %d\n", size);
+    AES_Init();
+    SHA_Init();
+    NAND_Init();
+    execute_program(program, size);
+    
     return 0;
 }
