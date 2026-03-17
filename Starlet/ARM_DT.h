@@ -1,11 +1,9 @@
 /*
     Starmulator - Low Level Wii IOP Emulator
 
-    aes.h - AES Engine
+    ARM_DT.h - Data-transfer Unit
     
     Copyright (C) 2026 Abdelali221
-
-    Based on the Tiny-AES-C project
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -21,29 +19,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _AES_H_
-#define _AES_H_
-
-#define AES_BLOCKLEN 16 // Block length in bytes - AES is 128b block only
-
-#define AES_KEYLEN 16   // Key length in bytes
-#define AES_keyExpSize 176
-
-struct AES_ctx
-{
-  uint8_t RoundKey[AES_keyExpSize];
-  uint8_t Iv[AES_BLOCKLEN];
-};
-
-struct AES_REGS {
-	uint32_t CTRL;
-	uint32_t SRC;
-	uint32_t DEST;
-	uint32_t KEY_FIFO;
-	uint32_t IV_FIFO;
-};
-
-int AES_Init();
-int AES_Deinit();
+#ifndef _ARM_DT_H_
+#define _ARM_DT_H_
 
 #endif

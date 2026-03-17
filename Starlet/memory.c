@@ -26,7 +26,6 @@
 
 #include "hollywood.h"
 #include "memory.h"
-#include "armcore.h"
 #include "dev.h"
 
 MMU_Table Mem_Table[] = {
@@ -82,7 +81,8 @@ void* Mem_ResolveSRAM(uint32_t addr, arm_state *as, uint8_t i) {
     }
 }
 
-void* Mem_Resolve(uint32_t addr, arm_state *as) {
+void* Mem_Resolve(uint32_t addr, void *_as) {
+    arm_state *as = (arm_state*)_as;
     void* retaddr = NULL;
     for(int i = 0; i < 10; i++) {
         if(addr >= Mem_Table[i].MMU_Addr_Start &&
@@ -107,7 +107,7 @@ void* Mem_Resolve(uint32_t addr, arm_state *as) {
         return retaddr;
     }
     printf("\nAddress invalid! | addr: 0x%X \n", addr);
-    arm_state_print(as);
+    //ARM_Print_State(as);
     fflush(stdout);
     Mem_free(&as->memory);
     exit(-1);

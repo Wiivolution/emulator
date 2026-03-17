@@ -26,7 +26,7 @@
 #include <unistd.h>
 #include <time.h>
 
-#include "armcore.h"
+#include "ARM_Core.h"
 #include "dev.h"
 #include "aes.h"
 #include "sha.h"
@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
     AES_Init();
     SHA_Init();
     NAND_Init();
-    execute_program(program, size);
+    ARM_LoadAndExecute(program, size);
     
     return 0;
 }

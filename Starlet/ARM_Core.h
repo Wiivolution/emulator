@@ -1,7 +1,7 @@
 /*
     Starmulator - Low Level Wii IOP Emulator
 
-    armcore.h - CPU Core
+    ARM_Core.h - CPU Core
     
     Copyright (C) 2026 Abdelali221
 
@@ -23,11 +23,6 @@
 #define _ARMCORE_H_
 
 #include "memory.h"
-
-#define NREGS 16
-#define SP 13
-#define LR 14 
-#define PC 15 
 
 #define MODE_USER 0b10000
 #define MODE_FIQ  0b10001
@@ -58,6 +53,11 @@ typedef struct vectortable {
     uint32_t FIQ;
 } vectortable;
 
+#define NREGS 16
+#define SP 13
+#define LR 14 
+#define PC 15 
+
 typedef struct arm_state {
     uint32_t regs[NREGS];
     uint32_t cpsr;
@@ -65,7 +65,10 @@ typedef struct arm_state {
     uint32_t HW_regs[0x100];
 } arm_state;
 
-void arm_state_print(struct arm_state *as);
-void execute_program(uint32_t *program, uint32_t program_size);
+void ARM_LoadAndExecute(uint32_t *program, uint32_t program_size);
+void ARM_Print_State(struct arm_state *as);
+void ARM_SetCPSR(struct arm_state *as, int result, long long result_long);
+uint32_t _rot(uint32_t value, int shift);
+uint32_t _rotl(uint32_t value, int shift);
 
 #endif
