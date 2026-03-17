@@ -31,13 +31,14 @@ uint8_t* SHA_Regs;
 pthread_t SHA_thread;
 
 device SHA = {
-    0, NULL, 0xD02FFFF, 0x1c, 2
+    0, NULL, 0xD030000, 0x1c, 2
 };
 
 void* SHA_EventHandler(void* args) {
     while(1) {
         if(SHA_Regs[0] != 0) {
             printf("\nCMD: 0x%X", SHA_Regs[0]);
+            fflush(stdout);
             SHA_Regs[0] = 0;
         }
     }
