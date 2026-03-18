@@ -46,12 +46,13 @@ bool ARM_DT_Is_SDT_Instr(uint32_t instr) // Single Data Transfer
 
 void ARM_DT_Execute_Push(struct arm_state *as, uint32_t instr) 
 {
-    uint16_t register_list = instr & 0xFFFF;
+    uint32_t register_list = instr & 0xFFFF;
+    uint32_t rn = (instr>>16) & 0xF;
     uint32_t w_bit = (instr>>21) & 0b1;
     uint32_t s_bit = (instr>>22) & 0b1;
     uint32_t u_bit = (instr>>23) & 0b1;
     uint32_t p_bit = (instr>>24) & 0b1;
-    uint32_t modified_base_value = as->regs[(instr>>16) & 0xF];
+    uint32_t modified_base_value = as->regs[rn];
     uint32_t offset_value = 4;
     int i;
 
@@ -80,7 +81,7 @@ void ARM_DT_Execute_Push(struct arm_state *as, uint32_t instr)
             }
             //Check w bit
             if (w_bit == 1) {
-                as->regs[(instr>>16) & 0xF] = modified_base_value;
+                as->regs[rn] = modified_base_value;
             }
         }
     }
@@ -90,13 +91,14 @@ void ARM_DT_Execute_Push(struct arm_state *as, uint32_t instr)
 
 void ARM_DT_Execute_Pop(struct arm_state *as, uint32_t instr) 
 {
-    uint32_t register_list = instr & 0xFFFF;
-    uint32_t w_bit = (instr>>21) & 0b1;
-    uint32_t s_bit = (instr>>22) & 0b1;
-    uint32_t u_bit = (instr>>23) & 0b1;
-    uint32_t p_bit = (instr>>24) & 0b1;
-    uint32_t modified_base_value = as->regs[(instr>>16) & 0xF];
-    uint32_t offset_value = 4;
+    uint16_t register_list = instr & 0xFFFF;
+    uint8_t rn = (instr>>16) & 0xF;
+    uint8_t w_bit = (instr>>21) & 0b1;
+    uint8_t s_bit = (instr>>22) & 0b1;
+    uint8_t u_bit = (instr>>23) & 0b1;
+    uint8_t p_bit = (instr>>24) & 0b1;
+    uint32_t modified_base_value = as->regs[rn];
+    uint16_t offset_value = 4;
     int i;
 
     for (i = 0; i < NREGS; i++) {
@@ -124,7 +126,7 @@ void ARM_DT_Execute_Pop(struct arm_state *as, uint32_t instr)
             }
             //Check w bit
             if (w_bit == 1) {
-                as->regs[(instr>>16) & 0xF] = modified_base_value;
+                as->regs[rn] = modified_base_value;
             }
         }
     }
@@ -135,13 +137,14 @@ void ARM_DT_Execute_Pop(struct arm_state *as, uint32_t instr)
 void ARM_DT_Execute_SDT_Instr(struct arm_state *as, uint32_t instr)
 {
     uint8_t rd = (instr>>12) & 0xF;
-    uint32_t l_bit = (instr>>20) & 0b1;
-    uint32_t w_bit = (instr>>21) & 0b1;
-    uint32_t b_bit = (instr>>22) & 0b1;
-    uint32_t u_bit = (instr>>23) & 0b1;
-    uint32_t p_bit = (instr>>24) & 0b1;
-    uint32_t i_bit = (instr>>25) & 0b1;
-    uint32_t modified_base_value = as->regs[(instr>>16) & 0xF];
+    uint8_t rn = (instr>>16) & 0xF;
+    uint8_t l_bit = (instr>>20) & 0b1;
+    uint8_t w_bit = (instr>>21) & 0b1;
+    uint8_t b_bit = (instr>>22) & 0b1;
+    uint8_t u_bit = (instr>>23) & 0b1;
+    uint8_t p_bit = (instr>>24) & 0b1;
+    uint8_t i_bit = (instr>>25) & 0b1;
+    uint32_t modified_base_value = as->regs[rn];
     uint16_t offset_value;
 
     //Check i bit
@@ -162,11 +165,11 @@ void ARM_DT_Execute_SDT_Instr(struct arm_state *as, uint32_t instr)
             modified_base_value -= offset_value;
         }
         if (w_bit == 1) { // Save result to base register
-            as->regs[(instr>>16) & 0xF] = modified_base_value;
+            as->regs[rn] = modified_base_value;
         }
     }
 
-    if((instr>>16) & 0xF == PC) {
+    if(rn == PC) {
         modified_base_value += 8;
     }
 
@@ -201,7 +204,7 @@ void ARM_DT_Execute_SDT_Instr(struct arm_state *as, uint32_t instr)
             modified_base_value -= offset_value;
         }
 
-        as->regs[(instr>>16) & 0xF] = modified_base_value;
+        as->regs[rn] = modified_base_value;
     }
 
     as->regs[PC] += 4;
