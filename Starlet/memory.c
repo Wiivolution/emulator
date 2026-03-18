@@ -48,21 +48,21 @@ int Mem_Init(Memory* mem) {
     if(mem->MEM1 == NULL) {
         return -1;
     }
-    printf("0x%X", (uint32_t)mem->MEM1);
+    printf("0x%X", mem->MEM1);
     printf("\nAllocating MEM2...");
     fflush(stdout);
     mem->MEM2 = malloc(MEM_64MB);
     if(mem->MEM2 == NULL) {
         return -2;
     }
-    printf("0x%X", (uint32_t)mem->MEM2);
+    printf("0x%X", mem->MEM2);
     printf("\nAllocating SRAM...");
     fflush(stdout);
     mem->SRAM = malloc(96 * 1024);
     if(mem->SRAM == NULL) {
         return -3;
     }
-    printf("0x%X\n", (uint32_t)mem->SRAM);
+    printf("0x%X\n", mem->SRAM);
     return 0;
 }
 
