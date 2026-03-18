@@ -29,32 +29,119 @@
 #include "ARM_Core.h"
 #include "memory.h"
 
-bool ARM_is_push(uint32_t iw)
+bool ARM_DT_Is_Push_Instr(uint32_t instr)
 {
-    return (((iw >> 25) & 0b111) == 0b100) && (((iw>>20) & 0b1) == 0b0);
+    return (((instr >> 25) & 0b111) == 0b100) && (((instr>>20) & 0b1) == 0b0);
 }
 
-bool iw_is_pop(uint32_t iw) 
+bool ARM_DT_Is_Pop_Instr(uint32_t instr) 
 {
-    return (((iw >> 25) & 0b111) == 0b100) && (((iw>>20) & 0b1) == 0b1);
+    return (((instr >> 25) & 0b111) == 0b100) && (((instr>>20) & 0b1) == 0b1);
 }
 
-bool instr_is_single_data_transfer_instruction(uint32_t instr)
+bool ARM_DT_Is_SDT_Instr(uint32_t instr) // Single Data Transfer
 {
     return ((instr >> 26) & 0b11) == 0b01;
 }
 
-void execute_single_data_transfer_instruction(struct arm_state *as, uint32_t instr)
+void ARM_DT_Execute_Push(struct arm_state *as, uint32_t instr) 
+{
+    uint16_t register_list = instr & 0xFFFF;
+    uint32_t w_bit = (instr>>21) & 0b1;
+    uint32_t s_bit = (instr>>22) & 0b1;
+    uint32_t u_bit = (instr>>23) & 0b1;
+    uint32_t p_bit = (instr>>24) & 0b1;
+    uint32_t modified_base_value = as->regs[(instr>>16) & 0xF];
+    uint32_t offset_value = 4;
+    int i;
+
+    for (i = (NREGS - 1); i >= 0; i--) {
+        if ( ((register_list >> i) & 0b1) == 0b1) {
+            //Check p bit
+            if (p_bit == 1) {
+                //Check u bit
+                if (u_bit == 1) {
+                    modified_base_value += offset_value;        
+                }
+                else {
+                    modified_base_value -= offset_value;
+                }
+            }
+            memcpy(Mem_Resolve(modified_base_value, as), &as->regs[i], 4);
+            //Check p bit
+            if (p_bit == 0) {
+                //Check u bit
+                if (u_bit == 1) {
+                    modified_base_value += offset_value;
+                }
+                else {
+                    modified_base_value -= offset_value;
+                }
+            }
+            //Check w bit
+            if (w_bit == 1) {
+                as->regs[(instr>>16) & 0xF] = modified_base_value;
+            }
+        }
+    }
+
+    as->regs[PC] += 4;
+}
+
+void ARM_DT_Execute_Pop(struct arm_state *as, uint32_t instr) 
+{
+    uint32_t register_list = instr & 0xFFFF;
+    uint32_t w_bit = (instr>>21) & 0b1;
+    uint32_t s_bit = (instr>>22) & 0b1;
+    uint32_t u_bit = (instr>>23) & 0b1;
+    uint32_t p_bit = (instr>>24) & 0b1;
+    uint32_t modified_base_value = as->regs[(instr>>16) & 0xF];
+    uint32_t offset_value = 4;
+    int i;
+
+    for (i = 0; i < NREGS; i++) {
+        if ( ((register_list >> i) & 0b1) == 0b1) {
+            //Check p bit
+            if (p_bit == 1) {
+                //Check u bit
+                if (u_bit == 1) {
+                    modified_base_value += offset_value;
+                }
+                else {
+                    modified_base_value -= offset_value;
+                }
+            }
+            memcpy(&as->regs[i], Mem_Resolve(modified_base_value, as), 4);
+            //Check p bit
+            if (p_bit == 0) {
+                //Check u bit
+                if (u_bit == 1) {
+                    modified_base_value += offset_value;
+                }
+                else {
+                    modified_base_value -= offset_value;
+                }
+            }
+            //Check w bit
+            if (w_bit == 1) {
+                as->regs[(instr>>16) & 0xF] = modified_base_value;
+            }
+        }
+    }
+
+    as->regs[PC] += 4;
+}
+
+void ARM_DT_Execute_SDT_Instr(struct arm_state *as, uint32_t instr)
 {
     uint8_t rd = (instr>>12) & 0xF;
-    uint32_t rn = (instr>>16) & 0xF;
     uint32_t l_bit = (instr>>20) & 0b1;
     uint32_t w_bit = (instr>>21) & 0b1;
     uint32_t b_bit = (instr>>22) & 0b1;
     uint32_t u_bit = (instr>>23) & 0b1;
     uint32_t p_bit = (instr>>24) & 0b1;
     uint32_t i_bit = (instr>>25) & 0b1;
-    uint32_t modified_base_value = as->regs[rn];
+    uint32_t modified_base_value = as->regs[(instr>>16) & 0xF];
     uint16_t offset_value;
 
     //Check i bit
@@ -66,7 +153,7 @@ void execute_single_data_transfer_instruction(struct arm_state *as, uint32_t ins
     }
 
     //Check p bit
-    if (p_bit == 1) {
+    if (p_bit == 1) { // Pre-indexed addressing
         //Check u bit
         if (u_bit == 1) {
             modified_base_value += offset_value; 
@@ -74,9 +161,12 @@ void execute_single_data_transfer_instruction(struct arm_state *as, uint32_t ins
         else {
             modified_base_value -= offset_value;
         }
+        if (w_bit == 1) { // Save result to base register
+            as->regs[(instr>>16) & 0xF] = modified_base_value;
+        }
     }
 
-    if(rn == PC) {
+    if((instr>>16) & 0xF == PC) {
         modified_base_value += 8;
     }
 
@@ -101,19 +191,17 @@ void execute_single_data_transfer_instruction(struct arm_state *as, uint32_t ins
     }
 
     //Check p bit
-    if (p_bit == 0) {
+    
+    if (p_bit == 0) { // Post-indexed addressing
         //Check u bit
         if (u_bit == 1) {
             modified_base_value += offset_value;
         }
         else {
-            modified_base_value += offset_value;
+            modified_base_value -= offset_value;
         }
-    }
 
-    //Check w bit
-    if (w_bit == 1) {
-        as->regs[rn] = modified_base_value;
+        as->regs[(instr>>16) & 0xF] = modified_base_value;
     }
 
     as->regs[PC] += 4;

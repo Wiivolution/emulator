@@ -22,4 +22,11 @@
 #ifndef _ARM_DT_H_
 #define _ARM_DT_H_
 
+bool ARM_DT_Is_SDT_Instr(uint32_t instr);
+void ARM_DT_Execute_SDT_Instr(struct arm_state *as, uint32_t instr);
+bool ARM_DT_Is_Push_Instr(uint32_t instr);
+void ARM_DT_Execute_Push(struct arm_state *as, uint32_t instr);
+bool ARM_DT_Is_Pop_Instr(uint32_t instr);
+void ARM_DT_Execute_Pop(struct arm_state *as, uint32_t instr);
+
 #endif

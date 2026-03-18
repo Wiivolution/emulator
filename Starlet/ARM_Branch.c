@@ -51,11 +51,10 @@ void ARM_BR_Execute_Branch(struct arm_state *as, uint32_t instr) {
     uint32_t offset = instr & 0xFFFFFF;
     uint32_t destination;
 
-    if ((instr >> 23) & 0b1 == 0) {
-        destination = offset | 0x00000000;
-    }
-    else {
+    if ((instr >> 23) & 0b1) {
         destination = offset | 0xFF000000;
+    } else {
+        destination = offset | 0x00000000;
     }
 
     destination = destination << 2;

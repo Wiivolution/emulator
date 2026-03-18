@@ -56,6 +56,10 @@ bool ARM_DP_Is_DataProcessing(uint32_t instr) {
     return ((instr >> 26) & 0b11) == 0;
 }
 
+bool ARM_DP_Carry(uint32_t a, uint32_t b) {
+    return a >= b;
+}
+
 void ARM_DP_Execute(struct arm_state* as, uint32_t instr) {
     uint32_t rm_value;
     uint8_t rotate = (instr >> 8) & 0xF;
@@ -100,28 +104,45 @@ void ARM_DP_Execute(struct arm_state* as, uint32_t instr) {
         break;
         
         case DP_ADC:
+            as->regs[(instr >> 12) & 0xF] = as->regs[(instr >> 16) & 0xF] + rm_value + ((as->cpsr & C_FLAG) * C_FLAG);
+            result_long = (long long) as->regs[(instr >> 16) & 0xF] + (long long) (rm_value + ((as->cpsr & C_FLAG) * C_FLAG));
+            result = as->regs[(instr >> 12) & 0xF];
         break;
         
         case DP_SBC:
+            as->regs[(instr >> 12) & 0xF] = as->regs[(instr >> 16) & 0xF] - rm_value - (!(as->cpsr & C_FLAG) * C_FLAG);
+            result_long = (long long) as->regs[(instr >> 16) & 0xF] - (long long) rm_value - (!(as->cpsr & C_FLAG) * C_FLAG);
+            result = as->regs[(instr >> 12) & 0xF];
         break;
         
         case DP_RSC:
+            as->regs[(instr >> 12) & 0xF] = rm_value - as->regs[(instr >> 16) & 0xF] - (!(as->cpsr & C_FLAG) * C_FLAG);
+            result_long = (long long)rm_value - (long long) as->regs[(instr >> 16) & 0xF] - (!(as->cpsr & C_FLAG) * C_FLAG);
+            result = as->regs[(instr >> 12) & 0xF];
         break;
         
         case DP_TST:
+            result_long = (long long) as->regs[(instr >> 16) & 0xF] & (long long) rm_value;
+            result = as->regs[(instr >> 16) & 0xF] & rm_value;
+            ARM_SetCPSR(as, result, result_long);
         break;
         
         case DP_TEQ:
+            result_long = (long long) as->regs[(instr >> 16) & 0xF] ^ (long long) rm_value;
+            result = as->regs[(instr >> 16) & 0xF] ^ rm_value;
+            ARM_SetCPSR(as, result, result_long);
         break;
         
         case DP_CMP:
-            result_long = (long long) as->regs[(instr >> 16) & 0xF] | (long long) rm_value;
-            result = as->regs[(instr >> 12) & 0xF];
+            result_long = (long long) as->regs[(instr >> 16) & 0xF] - (long long) rm_value;
+            result = as->regs[(instr >> 16) & 0xF] - rm_value;
             ARM_SetCPSR(as, result, result_long);
-            return;
         break;
         
         case DP_CMN:
+            result_long = (long long) as->regs[(instr >> 16) & 0xF] + (long long) rm_value;
+            result = as->regs[(instr >> 16) & 0xF] + rm_value;
+            ARM_SetCPSR(as, result, result_long);
         break;
         
         case DP_ORR:
@@ -131,12 +152,15 @@ void ARM_DP_Execute(struct arm_state* as, uint32_t instr) {
         break;
         
         case DP_MOV:
+            as->regs[(instr >> 12) & 0xF] = rm_value;
             result_long = (long long) as->regs[(instr >> 12) & 0xF];
             result = as->regs[(instr >> 12) & 0xF];
         break;
         
         case DP_BIC:
-
+            as->regs[(instr >> 12) & 0xF] = as->regs[(instr >> 16) & 0xF] & ~rm_value;
+            result_long = (long long) as->regs[(instr >> 16) & 0xF] & (long long) ~rm_value;
+            result = as->regs[(instr >> 12) & 0xF];
         break;
 
         case DP_MVN:
@@ -145,6 +169,7 @@ void ARM_DP_Execute(struct arm_state* as, uint32_t instr) {
             result_long = (long long) as->regs[(instr >> 12) & 0xF];
         break;
     }
+    //printf("\nresult: 0x%08X | result long: 0x%llX", result, result_long);
 
     if (instr & S_BIT) {
         ARM_SetCPSR(as, result, result_long);

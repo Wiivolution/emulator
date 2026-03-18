@@ -96,8 +96,20 @@ void ARM_Print_State(struct arm_state *as)
     memcpy(&pcdata, Mem_Resolve(as->regs[PC], as), 4);
     
     printf("Data at PC : 0x%X\n", __builtin_bswap32(pcdata));
-    printf("cpsr: 0x%x\n", as->cpsr);
-    printf("\nGPIO: 0x%08X", __builtin_bswap32(*(uint32_t*)Mem_Resolve(0xd8000e0, as)));
+    printf("cpsr: 0x%x", as->cpsr);
+    if(as->cpsr & C_FLAG) {
+        printf(" C ");
+    }
+    if(as->cpsr & N_FLAG) {
+        printf(" N ");
+    }
+    if(as->cpsr & Z_FLAG) {
+        printf(" Z ");
+    }
+    if(as->cpsr & V_FLAG) {
+        printf(" V ");
+    }
+    printf("\nGPIO: 0x%08X\n", __builtin_bswap32(*(uint32_t*)Mem_Resolve(0xd8000e0, as)));
 }
 
 void ARM_SetCPSR(struct arm_state *as, int result, long long result_long) 
@@ -108,10 +120,10 @@ void ARM_SetCPSR(struct arm_state *as, int result, long long result_long)
         as->cpsr = as->cpsr & (0xFFFFFFFF - V_FLAG);
     }
 
-    if (result_long < 0 && result_long > 4294967295) {
-        as->cpsr = as->cpsr | C_FLAG; //setting C to 1 
+    if(result >= 0) {
+        as->cpsr |= C_FLAG;
     } else {
-        as->cpsr = as->cpsr & (0xFFFFFFFF - C_FLAG); //setting C to 0
+        as->cpsr &= (0xFFFFFFFF - C_FLAG);
     }
 
     if (result < 0) {
@@ -178,7 +190,7 @@ int ARM_Execute_Single(struct arm_state *as)
     instr = __builtin_bswap32(instr);
     int ret = 0;
 
-    ARM_Print_State(as);
+    //ARM_Print_State(as);
 
     if (ARM_BR_Is_BX_Instr(instr)) {
         if(ARM_Is_cond_fulfilled(as, instr)) {
@@ -186,7 +198,7 @@ int ARM_Execute_Single(struct arm_state *as)
         } else {
             as->regs[PC] += 4;
         }
-    } else if (ARM_BR_Is_BX_Instr(instr)) {
+    } else if (ARM_BR_Is_Branch_Instr(instr)) {
         if (ARM_Is_cond_fulfilled(as, instr)) {
             ARM_BR_Execute_Branch(as, instr);
         } else {
@@ -197,21 +209,21 @@ int ARM_Execute_Single(struct arm_state *as)
             ARM_DP_Execute(as, instr);
         }
         as->regs[PC] += 4;
-    } /*else if (instr_is_single_data_transfer_instruction(instr)) {
+    } else if (ARM_DT_Is_SDT_Instr(instr)) {
         if (ARM_Is_cond_fulfilled(as, instr)) {
-            execute_single_data_transfer_instruction(as, instr);
+            ARM_DT_Execute_SDT_Instr(as, instr);
         } else {
             as->regs[PC] += 4;
         }
-    } else if (instr_is_push(instr)) {
+    } else if (ARM_DT_Is_Push_Instr(instr)) {
         if (ARM_Is_cond_fulfilled(as, instr)) {
-            execute_push(as, instr);
+            ARM_DT_Execute_Push(as, instr);
         } else {
             as->regs[PC] += 4;
         }
-    } else if (instr_is_pop(instr)) {
-        execute_pop(as, instr);
-    } */ else {
+    } else if (ARM_DT_Is_Pop_Instr(instr)) {
+        ARM_DT_Execute_Pop(as, instr);
+    } else {
         return -1;
     }
     return ret;
@@ -219,22 +231,22 @@ int ARM_Execute_Single(struct arm_state *as)
 
 uint32_t instructions_executed = 0;
 
-uint32_t arm_state_execute(struct arm_state *as)
+uint32_t ARM_Execute(struct arm_state *as)
 {
     while (as->regs[PC] != 0xFFFF0588) {
         if(!(as->cpsr & T_FLAG)) {
             int ret = ARM_Execute_Single(as);
             if(ret != 0) {
-                printf("BAD/UNIMPLEMENTED Instuction!");
+                printf("\nBAD/UNIMPLEMENTED Instuction!");
                 fflush(stdout);
                 sleep(1);
                 break;
             }
         } else {
-            //thumb_state_execute_one(as);
+            //THUMB_Execute_Single(as);
         }
         fflush(stdout);
-        usleep(200000);
+        //usleep(200000);
         instructions_executed++;
     }
 
@@ -246,7 +258,7 @@ void ARM_LoadAndExecute(uint32_t *program, uint32_t program_size)
     struct arm_state *as;
 
     as = ARM_State_New(0xFFFF0000, 0xFFFF0000, program, program_size, 0, 0, 0, 0);
-    arm_state_execute(as);
+    ARM_Execute(as);
 
     printf("\n-----------------executing program --------------------\n");
     ARM_Print_State(as);
