@@ -5,7 +5,7 @@ CFILES = ARM_Core.c ARM_DP.c ARM_DT.c ARM_Branch.c memory.c dev.c aes.c sha.c na
 all : ${PROGS}
 
 armemu : ${CFILES}
-	gcc -o armemu ${CFILES}
+	gcc -o armemu -lcrypto ${CFILES}
 
 test : armemu
 	./armemu

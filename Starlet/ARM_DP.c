@@ -169,7 +169,6 @@ void ARM_DP_Execute(struct arm_state* as, uint32_t instr) {
             result_long = (long long) as->regs[(instr >> 12) & 0xF];
         break;
     }
-    //printf("\nresult: 0x%08X | result long: 0x%llX", result, result_long);
 
     if (instr & S_BIT) {
         ARM_SetCPSR(as, result, result_long);

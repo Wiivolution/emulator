@@ -65,3 +65,22 @@ void ARM_BR_Execute_Branch(struct arm_state *as, uint32_t instr) {
 
     as->regs[PC] += (destination + 8);
 }
+
+bool THUMB_BR_Is_BranchType_Instr(uint16_t instr) {
+    return ((instr >> 12) & 0xF) == 0xD ||
+           ((instr >> 12) & 0xF) == 0xE ||
+           ((instr >> 12) & 0xF) == 0xF;
+}
+
+void THUMB_BR_Execute_BranchType_Instr(struct arm_state* as, uint16_t instr) {
+    switch(((instr >> 12) & 0xF)) {
+        case 0xD:
+        break;
+
+        case 0xE:
+        break;
+
+        case 0xF:
+        break;
+    }
+}

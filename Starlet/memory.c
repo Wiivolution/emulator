@@ -28,6 +28,8 @@
 #include "memory.h"
 #include "dev.h"
 
+void* boot0_rom = NULL;
+
 MMU_Table Mem_Table[] = {
     0x80000000, 0x817FFFFF, 0x00000000, 0x017FFFFF, MEM_1,
     0xC0000000, 0xC17FFFFF, 0x00000000, 0x017FFFFF, MEM_1,
@@ -35,33 +37,40 @@ MMU_Table Mem_Table[] = {
     0xD0000000, 0xD3FFFFFF, 0x10000000, 0x13FFFFFF, MEM_2,
     0xFFFE0000, 0xFFFEFFFF, 0x00000000, 0x0000FFFF, ARM_SRAM_A,
     0xFFFF0000, 0xFFFFFFFF, 0x00010000, 0x0001FFFF, ARM_SRAM_B,
+    0xFFF00000, 0xFFF0FFFF, 0x00000000, 0x0000FFFF, ARM_SRAM_A,
+    0xFFF10000, 0xFFF1FFFF, 0x00010000, 0x0001FFFF, ARM_SRAM_B,
     0x0D400000,	0x0D40FFFF, 0x00000000, 0x0000FFFF, ARM_SRAM_A,
     0x0D410000,	0x0D41FFFF, 0x00010000, 0x0001FFFF, ARM_SRAM_B,
     0x0D000000,	0x0D00FFFF, 0x00000000, 0x0000FFFF, REGS,
     0x0D800000,	0x0D80FFFF, 0x00000000, 0x0000FFFF, REGS
 };
 
-int Mem_Init(Memory* mem) {
+int Mem_Init(Memory* mem, void* boot0) {
     printf("\nAllocating MEM1...");
     fflush(stdout);
-    mem->MEM1 = malloc(24*1024);
+    mem->MEM1 = calloc(MEM_24MB, 1);
     if(mem->MEM1 == NULL) {
         return -1;
     }
     printf("0x%X", mem->MEM1);
     printf("\nAllocating MEM2...");
     fflush(stdout);
-    mem->MEM2 = malloc(MEM_64MB);
+    mem->MEM2 = calloc(MEM_64MB, 1);
     if(mem->MEM2 == NULL) {
         return -2;
     }
     printf("0x%X", mem->MEM2);
     printf("\nAllocating SRAM...");
     fflush(stdout);
-    mem->SRAM = malloc(96 * 1024);
+    mem->SRAM = calloc(96 * 1024, 1);
     if(mem->SRAM == NULL) {
         return -3;
     }
+    if(boot0 == NULL) {
+        printf("\nInvalid boot0 buffer!");
+        return -4;
+    }
+    boot0_rom = boot0;
     printf("0x%X\n", mem->SRAM);
     return 0;
 }
@@ -74,17 +83,62 @@ int Mem_free(Memory* mem) {
 }
 
 void* Mem_ResolveSRAM(uint32_t addr, arm_state *as, uint8_t i) {
-    if(!(as->HW_regs[HW_SRNPROT] & 0x20)) {
-        return (as->memory.SRAM + (addr - Mem_Table[i].MMU_Addr_Start));
+    if(!(as->HW_regs[HW_BOOT0 / 4] & 0x800)) {
+        if(!(as->HW_regs[HW_SRNPROT / 4] & 0x20)) {
+            switch(Mem_Table[i].Mem) {
+                case ARM_SRAM_A:
+                    return (as->memory.SRAM + (addr - Mem_Table[i].MMU_Addr_Start));
+                break;
+
+                case ARM_SRAM_B:
+                    return (as->memory.SRAM + 0x10000 + (addr - Mem_Table[i].MMU_Addr_Start));            
+                break;
+            }        
+        } else {
+            switch(Mem_Table[i].Mem) {
+                case ARM_SRAM_B:
+                    return (as->memory.SRAM + (addr - Mem_Table[i].MMU_Addr_Start));
+                break;
+
+                case ARM_SRAM_A:
+                    return (as->memory.SRAM + 0x10000 + (addr - Mem_Table[i].MMU_Addr_Start));            
+                break;
+            }
+        }
     } else {
-        return (as->memory.SRAM + (addr - Mem_Table[i].MMU_Addr_Start));
+        if(!(as->HW_regs[HW_SRNPROT / 4] & 0x20)) {
+            switch(Mem_Table[i].Mem) {
+                case ARM_SRAM_A:
+                    return (as->memory.SRAM + (addr - Mem_Table[i].MMU_Addr_Start));
+                break;
+
+                case ARM_SRAM_B:
+                    if(addr >= 0xFFFF0000) {
+                        printf("\nBoot0 ROM read detected");
+                        return (boot0_rom + (addr & 0xFFF));
+                    } else {
+                        return (as->memory.SRAM + 0x10000 + (addr - Mem_Table[i].MMU_Addr_Start));
+                    }                            
+                break;
+            }        
+        } else {
+            switch(Mem_Table[i].Mem) {
+                case ARM_SRAM_B:
+                    return (as->memory.SRAM + (addr - Mem_Table[i].MMU_Addr_Start));
+                break;
+
+                case ARM_SRAM_A:
+                    return (as->memory.SRAM + 0x10000 + (addr - Mem_Table[i].MMU_Addr_Start));            
+                break;
+            }
+        }
     }
 }
 
 void* Mem_Resolve(uint32_t addr, void *_as) {
     arm_state *as = (arm_state*)_as;
     void* retaddr = NULL;
-    for(int i = 0; i < 10; i++) {
+    for(int i = 0; i < 12; i++) {
         if(addr >= Mem_Table[i].MMU_Addr_Start &&
            addr <= Mem_Table[i].MMU_Addr_End)
         {

@@ -34,9 +34,13 @@
 #include "ARM_DP.h"
 #include "ARM_DT.h"
 #include "memory.h"
+#include "dev.h"
+#include "nand.h"
+#include "aes.h"
+#include "sha.h"
+#include "hollywood.h"
 
-struct arm_state *ARM_State_New(size_t program_loc, size_t entrypoint,
-                                uint32_t *program, size_t program_size,
+struct arm_state *ARM_State_New(size_t entrypoint, uint32_t *boot0,
                                 uint32_t arg0, uint32_t arg1,
                                 uint32_t arg2, uint32_t arg3)
 {
@@ -51,19 +55,20 @@ struct arm_state *ARM_State_New(size_t program_loc, size_t entrypoint,
 
     printf("Initializing Memory...");
 
-    if(Mem_Init(&as->memory) < 0) {
+    if(Mem_Init(&as->memory, boot0) < 0) {
         printf("\nmemory init failed!");
         exit(-1);
     } 
 
     printf("Done.\n");
-    printf("Putting program file into address 0x%X| Program size: 0x%X\n", Mem_Resolve(program_loc, as), program_size);
+    //printf("Putting program file into address 0x%X| Program size: 0x%X\n", Mem_Resolve(program_loc, as), program_size);
     fflush(stdout);
     memset(as->HW_regs, 0, 0x100);
-    memcpy(Mem_Resolve(program_loc, as), program, program_size);
+    //memcpy(Mem_Resolve(program_loc, as), program, program_size);
+    as->HW_regs[HW_BOOT0 / 4] |= 0x800;
 
     // Initialize all registers to zero.
-    as->cpsr = 0;
+    as->cpsr = 0x1d3;
     for (i = 0; i < NREGS; i++) {
         as->regs[i] = 0;
     }
@@ -190,7 +195,7 @@ int ARM_Execute_Single(struct arm_state *as)
     instr = __builtin_bswap32(instr);
     int ret = 0;
 
-    //ARM_Print_State(as);
+    ARM_Print_State(as);
 
     if (ARM_BR_Is_BX_Instr(instr)) {
         if(ARM_Is_cond_fulfilled(as, instr)) {
@@ -229,12 +234,50 @@ int ARM_Execute_Single(struct arm_state *as)
     return ret;
 }
 
+int THUMB_Execute_Single(struct arm_state* as) {
+    uint16_t instr;
+    memcpy(&instr, Mem_Resolve(as->regs[PC], as), 2);
+    instr = __builtin_bswap16(instr);
+    int ret = 0;
+
+    //ARM_Print_State(as);
+    /*
+    if (THUMB_BR_Is_BX_Instr(instr)) {
+        THUMB_BR_Execute_BX(as, instr);
+    } else if (THUMB_BR_Is_Branch_Instr(instr)) {
+        ARM_BR_Execute_Branch(as, instr);
+    } else if (ARM_DP_Is_DataProcessing(instr)) {
+        if (ARM_Is_cond_fulfilled(as, instr)) {
+            ARM_DP_Execute(as, instr);
+        }
+        as->regs[PC] += 2;
+    } else if (ARM_DT_Is_SDT_Instr(instr)) {
+        if (ARM_Is_cond_fulfilled(as, instr)) {
+            ARM_DT_Execute_SDT_Instr(as, instr);
+        } else {
+            as->regs[PC] += 2;
+        }
+    } else if (ARM_DT_Is_Push_Instr(instr)) {
+        if (ARM_Is_cond_fulfilled(as, instr)) {
+            ARM_DT_Execute_Push(as, instr);
+        } else {
+            as->regs[PC] += 2;
+        }
+    } else if (ARM_DT_Is_Pop_Instr(instr)) {
+        ARM_DT_Execute_Pop(as, instr);
+    } else {
+        return -1;
+    }
+    */
+    return ret;
+}
+
 uint32_t instructions_executed = 0;
 
 uint32_t ARM_Execute(struct arm_state *as)
 {
-    while (as->regs[PC] != 0xFFFF0588) {
-        if(!(as->cpsr & T_FLAG)) {
+    while (as->regs[PC] != 0xFFFF0008) {
+        if(as->cpsr & T_FLAG) {
             int ret = ARM_Execute_Single(as);
             if(ret != 0) {
                 printf("\nBAD/UNIMPLEMENTED Instuction!");
@@ -243,21 +286,27 @@ uint32_t ARM_Execute(struct arm_state *as)
                 break;
             }
         } else {
-            //THUMB_Execute_Single(as);
+            THUMB_Execute_Single(as);
         }
         fflush(stdout);
-        //usleep(200000);
+        usleep(2000);
         instructions_executed++;
     }
 
     return as->regs[0];
 }
 
-void ARM_LoadAndExecute(uint32_t *program, uint32_t program_size) 
+void ARM_LoadAndExecute(uint32_t *boot0, uint32_t b0_size, uint32_t *boot1, uint32_t b1_size) 
 {
     struct arm_state *as;
 
-    as = ARM_State_New(0xFFFF0000, 0xFFFF0000, program, program_size, 0, 0, 0, 0);
+    as = ARM_State_New(0xFFFF0000, boot0, 0, 0, 0, 0);
+    memcpy(Mem_Resolve(0xFFF00000, as), boot1, b1_size);
+
+    AES_Init();
+    SHA_Init(as);
+    NAND_Init();
+
     ARM_Execute(as);
 
     printf("\n-----------------executing program --------------------\n");

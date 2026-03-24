@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <unistd.h>
 
 #include "dev.h"
@@ -94,13 +95,6 @@ static const uint8_t Rcon[11] = {
 };
 
 #define getSBoxValue(num) (sbox[(num)])
-
-struct AES_REGS* AES_Regs;
-pthread_t AES_thread;
-
-device AES = {
-    0, NULL, 0x0d020000, 0x14, 3
-};
 
 static void KeyExpansion(uint8_t* RoundKey, const uint8_t* Key)
 {
@@ -387,18 +381,6 @@ static void InvCipher(state_t* state, const uint8_t* RoundKey)
 
 }
 
-void AES_ECB_encrypt(const struct AES_ctx* ctx, uint8_t* buf)
-{
-	// The next function call encrypts the PlainText with the Key using AES algorithm.
-	Cipher((state_t*)buf, ctx->RoundKey);
-}
-
-void AES_ECB_decrypt(const struct AES_ctx* ctx, uint8_t* buf)
-{
-	// The next function call decrypts the PlainText with the Key using AES algorithm.
-	InvCipher((state_t*)buf, ctx->RoundKey);
-}
-
 static void XorWithIv(uint8_t* buf, const uint8_t* Iv)
 {
 	uint8_t i;
@@ -478,23 +460,19 @@ uint8_t FIFO_KEY_written = 0;
 uint32_t KEY[4] = {0};
 uint32_t IV[4] = {0};
 
+struct AES_REGS* AES_Regs;
+pthread_t AES_thread;
+
+device AES = {
+    0, NULL, 0x0d020000, 0x14, 3
+};
+
+atomic_bool stop_thread = true;
+
 void* AES_EventHandler(void* args) {
-    while(1) {
-		if(AES_Regs->KEY_FIFO && FIFO_KEY_written < 4) {
-			KEY[FIFO_KEY_written] = AES_Regs->KEY_FIFO;
-			FIFO_KEY_written++;
-		} else if (FIFO_KEY_written > 3) {
-			AES_Regs->CTRL = 0x20000000;
-			continue;
-		}
-		if(AES_Regs->IV_FIFO && FIFO_IV_written < 4) {
-			FIFO_IV_written++;
-			IV[FIFO_IV_written] = AES_Regs->IV_FIFO;
-		} else if (FIFO_IV_written > 3) {
-			AES_Regs->CTRL = 0x20000000;
-			continue;
-		}
-        if(AES_Regs->CTRL != 0) {
+    while(stop_thread) {
+		if(AES_Regs->CTRL) {
+			printf("\nAES -> Got CTRL: 0c%X", AES_Regs->CTRL);
 			FIFO_IV_written = 0;
 			FIFO_KEY_written = 0;
 			struct AES_ctx ctx = {0};
@@ -502,27 +480,39 @@ void* AES_EventHandler(void* args) {
 			if(AES_Regs->CTRL & 0x80000000 && 
 			  (AES_Regs->SRC != 0 && AES_Regs->DEST != 0)) {
 				struct AES_ctx ctx;
+
 				if(AES_Regs->CTRL & 0x8000000) { // decrypt
 					//AES_CBC_decrypt_buffer(&ctx, AES_Regs->, AES_Regs->CTRL & 0x7FF);
 				} else { // encrypt
-
+					//AES_CBC_encrypt_buffer(struct AES_ctx *ctx, uint8_t* buf, size_t length);
 				}
 			}
-			memset(KEY, 0, 4 * 4);
-			memset(IV, 0, 4 * 4);
-        }
+			AES_Regs->CTRL = 0;
+        } else if(AES_Regs->IV_FIFO && FIFO_IV_written < 4) {
+			IV[FIFO_IV_written] = __builtin_bswap32(AES_Regs->IV_FIFO);
+			printf("\nAES -> Got IV_FIFO: i = %d Data = 0x%X", FIFO_IV_written, IV[FIFO_IV_written]);
+			AES_Regs->IV_FIFO = 0;
+			FIFO_IV_written++;
+		} else if(AES_Regs->KEY_FIFO && FIFO_KEY_written < 4) {
+			KEY[FIFO_KEY_written] = __builtin_bswap32(AES_Regs->KEY_FIFO);
+			printf("\nAES -> Got Key_FIFO: i = %d Data = 0x%X", FIFO_KEY_written, KEY[FIFO_KEY_written]);
+			AES_Regs->KEY_FIFO = 0;
+			FIFO_KEY_written++;
+		}
     }
+	return NULL;
 }
 
 int AES_Init() {
-    AES_Regs = malloc(0x1c);
-    AES.ptr = (uint8_t*)AES_Regs;
+    AES_Regs = calloc(0x1c, 1);
+    AES.ptr = AES_Regs;
     Dev_AddDevice(&AES);
     pthread_create(&AES_thread, NULL, AES_EventHandler, NULL);
     return 0;
 }
 
 int AES_Deinit() {
+	stop_thread = false;
     pthread_join(AES_thread, NULL);
     Dev_RemoveDevice(AES.ID);
     free(AES_Regs);

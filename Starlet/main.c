@@ -27,37 +27,44 @@
 #include <time.h>
 
 #include "ARM_Core.h"
-#include "dev.h"
-#include "aes.h"
-#include "sha.h"
-#include "nand.h"
 
 int main(int argc, char *argv[])
 {
-    char* file_name = argv[1];
-    if (file_name == NULL) {
-        printf("Usage: ./armemu <file_name>\n");
+    if (argv[1] == NULL || argv[2] == NULL) {
+        printf("Usage: ./armemu <boot0_binary> <boot1_binary>\n");
         return -1;
     }
-    FILE* fd = fopen(file_name, "rb");
+    FILE* fd = fopen(argv[1], "rb");
     if(!fd) {
-        printf("\nError opening file %s!\n", file_name);
+        printf("\nError opening file %s!\n", argv[1]);
         return -1;
     }
     fseek(fd, 0, SEEK_END);
-    uint32_t size = ftell(fd);
-    if(!size) {
-        printf("\nFile size is 0! %d\n", size);
+    uint32_t b0_size = ftell(fd);
+    if(!b0_size) {
+        printf("\nFile size is 0! %d\n", b0_size);
         return -1;
     }
     fseek(fd, 0, SEEK_SET);
-    uint32_t program[size / 4];
-    fread(program, 1, size, fd);
-    printf("\n Size = %d\n", size);
-    AES_Init();
-    SHA_Init();
-    NAND_Init();
-    ARM_LoadAndExecute(program, size);
+    uint32_t boot0[b0_size / 4];
+    fread(boot0, 1, b0_size, fd);
+    fclose(fd);
+    fd = fopen(argv[2], "rb");
+    if(!fd) {
+        printf("\nError opening file %s!\n", argv[2]);
+        return -1;
+    }
+    fseek(fd, 0, SEEK_END);
+    uint32_t b1_size = ftell(fd);
+    if(!b1_size) {
+        printf("\nFile size is 0! %d\n", b1_size);
+        return -1;
+    }
+    fseek(fd, 0, SEEK_SET);
+    uint32_t boot1[b1_size / 4];
+    fread(boot1, 1, b1_size, fd);
+
+    ARM_LoadAndExecute(boot0, b0_size, boot1, b1_size);
     
     return 0;
 }

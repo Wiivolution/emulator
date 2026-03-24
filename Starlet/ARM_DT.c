@@ -34,16 +34,6 @@ bool ARM_DT_Is_Push_Instr(uint32_t instr)
     return (((instr >> 25) & 0b111) == 0b100) && (((instr>>20) & 0b1) == 0b0);
 }
 
-bool ARM_DT_Is_Pop_Instr(uint32_t instr) 
-{
-    return (((instr >> 25) & 0b111) == 0b100) && (((instr>>20) & 0b1) == 0b1);
-}
-
-bool ARM_DT_Is_SDT_Instr(uint32_t instr) // Single Data Transfer
-{
-    return ((instr >> 26) & 0b11) == 0b01;
-}
-
 void ARM_DT_Execute_Push(struct arm_state *as, uint32_t instr) 
 {
     uint32_t register_list = instr & 0xFFFF;
@@ -59,13 +49,16 @@ void ARM_DT_Execute_Push(struct arm_state *as, uint32_t instr)
     for (i = (NREGS - 1); i >= 0; i--) {
         if ( ((register_list >> i) & 0b1) == 0b1) {
             //Check p bit
-            if (p_bit == 1) {
+            if (p_bit == 1) { // Pre-indexed addressing
                 //Check u bit
                 if (u_bit == 1) {
-                    modified_base_value += offset_value;        
+                    modified_base_value += offset_value; 
                 }
                 else {
                     modified_base_value -= offset_value;
+                }
+                if (w_bit == 1) { // Save result to base register
+                    as->regs[rn] = modified_base_value;
                 }
             }
             memcpy(Mem_Resolve(modified_base_value, as), &as->regs[i], 4);
@@ -79,14 +72,15 @@ void ARM_DT_Execute_Push(struct arm_state *as, uint32_t instr)
                     modified_base_value -= offset_value;
                 }
             }
-            //Check w bit
-            if (w_bit == 1) {
-                as->regs[rn] = modified_base_value;
-            }
         }
     }
 
     as->regs[PC] += 4;
+}
+
+bool ARM_DT_Is_Pop_Instr(uint32_t instr) 
+{
+    return (((instr >> 25) & 0b111) == 0b100) && (((instr>>20) & 0b1) == 0b1);
 }
 
 void ARM_DT_Execute_Pop(struct arm_state *as, uint32_t instr) 
@@ -104,13 +98,16 @@ void ARM_DT_Execute_Pop(struct arm_state *as, uint32_t instr)
     for (i = 0; i < NREGS; i++) {
         if ( ((register_list >> i) & 0b1) == 0b1) {
             //Check p bit
-            if (p_bit == 1) {
+            if (p_bit == 1) { // Pre-indexed addressing
                 //Check u bit
                 if (u_bit == 1) {
-                    modified_base_value += offset_value;
+                    modified_base_value += offset_value; 
                 }
                 else {
                     modified_base_value -= offset_value;
+                }
+                if (w_bit == 1) { // Save result to base register
+                    as->regs[rn] = modified_base_value;
                 }
             }
             memcpy(&as->regs[i], Mem_Resolve(modified_base_value, as), 4);
@@ -124,14 +121,15 @@ void ARM_DT_Execute_Pop(struct arm_state *as, uint32_t instr)
                     modified_base_value -= offset_value;
                 }
             }
-            //Check w bit
-            if (w_bit == 1) {
-                as->regs[rn] = modified_base_value;
-            }
         }
     }
 
     as->regs[PC] += 4;
+}
+
+bool ARM_DT_Is_SDT_Instr(uint32_t instr) // Single Data Transfer
+{
+    return ((instr >> 26) & 0b11) == 0b01;
 }
 
 void ARM_DT_Execute_SDT_Instr(struct arm_state *as, uint32_t instr)
@@ -192,9 +190,8 @@ void ARM_DT_Execute_SDT_Instr(struct arm_state *as, uint32_t instr)
             as->regs[rd] = __builtin_bswap32(as->regs[rd]);
         }
     }
-
-    //Check p bit
     
+    //Check p bit
     if (p_bit == 0) { // Post-indexed addressing
         //Check u bit
         if (u_bit == 1) {
@@ -208,4 +205,48 @@ void ARM_DT_Execute_SDT_Instr(struct arm_state *as, uint32_t instr)
     }
 
     as->regs[PC] += 4;
+}
+
+bool THUMB_DT_Is_Push_Instr(uint16_t instr) {
+    return ((((instr >> 12) & 0xF) == 0b1100 ||
+             ((instr >> 12) & 0xF) == 0b1011) &&
+             ((instr >> 11) & 1) == 0);
+}
+
+void THUMB_DT_Execute_Push(struct arm_state *as, uint16_t instr) {
+    uint8_t register_list = instr & 0xFF;
+    uint8_t rn = (instr>>7) & 0x7;
+    uint32_t modified_base_value = as->regs[rn];
+    int i;
+
+    for (i = 0; i < 8; i++) {
+        if ( ((register_list >> i) & 0b1) == 0b1) {
+            memcpy(Mem_Resolve(modified_base_value, as), &as->regs[i], 4);
+            modified_base_value += 4;
+        }
+    }
+
+    as->regs[PC] += 2;
+}
+
+bool THUMB_DT_Is_Pop_Instr(uint16_t instr) {
+    return ((((instr >> 12) & 0xF) == 0b1100 ||
+             ((instr >> 12) & 0xF) == 0b1011) &&
+             ((instr >> 11) & 1) == 1);
+}
+
+void THUMB_DT_Execute_Pop(struct arm_state *as, uint16_t instr) {
+    uint8_t register_list = instr & 0xFF;
+    uint8_t rn = (instr>>7) & 0x7;
+    uint32_t modified_base_value = as->regs[rn];
+    int i;
+
+    for (i = 0; i < 8; i++) {
+        if ( ((register_list >> i) & 0b1) == 0b1) {
+            memcpy(&as->regs[i], Mem_Resolve(modified_base_value, as), 4);
+            modified_base_value += 4;
+        }
+    }
+
+    as->regs[PC] += 2;
 }

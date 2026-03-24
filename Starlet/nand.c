@@ -26,8 +26,9 @@
 #include <pthread.h>
 
 #include "dev.h"
+#include "nand.h"
 
-uint8_t* NAND_Regs;
+NAND_REGS* NAND_Regs;
 pthread_t NAND_thread;
 
 device NAND = {
@@ -36,15 +37,15 @@ device NAND = {
 
 void* NAND_EventHandler(void* args) {
     while(1) {
-        if(NAND_Regs[0] != 0) {
-            printf("\nCMD: 0x%X", NAND_Regs[0]);
-            NAND_Regs[0] = 0;
+        if(NAND_Regs->CTRL) {
+            printf("\nNAND -> CMD: 0x%X | CONFIG: 0x%X | ADDR1: 0x%X | ADDR2: 0x%X | DATABUF: 0x%X", __builtin_bswap32(NAND_Regs->CTRL), __builtin_bswap32(NAND_Regs->CONFIG), __builtin_bswap32(NAND_Regs->ADDR1), __builtin_bswap32(NAND_Regs->ADDR2), __builtin_bswap32(NAND_Regs->DATABUF));
+            NAND_Regs->CTRL = 0;
         }
     }
 }
 
 int NAND_Init() {
-    NAND_Regs = malloc(0x1c);
+    NAND_Regs = calloc(0x1c, 1);
     NAND.ptr = NAND_Regs;
     Dev_AddDevice(&NAND);
     pthread_create(&NAND_thread, NULL, NAND_EventHandler, NULL);

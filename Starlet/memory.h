@@ -47,7 +47,7 @@ typedef struct MMU_Table {
 
 #include "ARM_Core.h"
 
-int Mem_Init(Memory* mem);
+int Mem_Init(Memory* mem, void* boot0);
 int Mem_free(Memory* mem);
 void* Mem_Resolve(uint32_t addr, void* as);
 

@@ -22,6 +22,16 @@
 #ifndef _NAND_H_
 #define _NAND_H_
 
+typedef struct NAND_REGS {
+	uint32_t CTRL;
+    uint32_t CONFIG;
+	uint32_t ADDR1;
+	uint32_t ADDR2;
+	uint32_t DATABUF;
+	uint32_t ECCBUF;
+    uint32_t UNK;
+} NAND_REGS;
+
 int NAND_Init();
 int NAND_Deinit();
 

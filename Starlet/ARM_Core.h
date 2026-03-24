@@ -42,7 +42,7 @@
 #define Z_FLAG 0x40000000
 #define N_FLAG 0x80000000
 
-typedef struct vectortable {
+struct vectortable {
     uint32_t Reset;
     uint32_t Undef_instr;
     uint32_t SWI;
@@ -51,7 +51,7 @@ typedef struct vectortable {
     uint32_t reserved;
     uint32_t IRQ;
     uint32_t FIQ;
-} vectortable;
+};
 
 #define NREGS 16
 #define SP 13
@@ -65,7 +65,7 @@ typedef struct arm_state {
     uint32_t HW_regs[0x100];
 } arm_state;
 
-void ARM_LoadAndExecute(uint32_t *program, uint32_t program_size);
+void ARM_LoadAndExecute(uint32_t *boot0, uint32_t b0_size, uint32_t *boot1, uint32_t b1_size);
 void ARM_Print_State(struct arm_state *as);
 void ARM_SetCPSR(struct arm_state *as, int result, long long result_long);
 uint32_t _rot(uint32_t value, int shift);

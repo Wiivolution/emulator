@@ -22,7 +22,17 @@
 #ifndef _SHA_H_
 #define _SHA_H_
 
-int SHA_Init();
+struct SHA_REGS {
+	uint32_t CTRL;
+	uint32_t SRC;
+	uint32_t H0;
+	uint32_t H1;
+	uint32_t H2;
+	uint32_t H3;
+	uint32_t H4;
+};
+
+int SHA_Init(struct arm_state *_as);
 int SHA_Deinit();
 
 #endif

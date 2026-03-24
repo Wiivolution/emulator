@@ -24,10 +24,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <openssl/sha.h>
 
+#include "ARM_Core.h"
 #include "dev.h"
+#include "sha.h"
 
-uint8_t* SHA_Regs;
+struct SHA_REGS* SHA_Regs;
+struct arm_state *as;
 pthread_t SHA_thread;
 
 device SHA = {
@@ -36,16 +40,24 @@ device SHA = {
 
 void* SHA_EventHandler(void* args) {
     while(1) {
-        if(SHA_Regs[0] != 0) {
-            printf("\nCMD: 0x%X", SHA_Regs[0]);
+        if(SHA_Regs->CTRL != 0) {
+            printf("\nSHA -> CMD: 0x%X | blocks: 0x%X | hash: 0x%X, 0x%X, 0x%X, 0x%X", __builtin_bswap32(SHA_Regs->CTRL), ((__builtin_bswap32(SHA_Regs->CTRL) & 0x1FF) * 6) + 1, __builtin_bswap32(SHA_Regs->H0),
+                    __builtin_bswap32(SHA_Regs->H1), __builtin_bswap32(SHA_Regs->H2),
+                    __builtin_bswap32(SHA_Regs->H3), __builtin_bswap32(SHA_Regs->H4));
             fflush(stdout);
-            SHA_Regs[0] = 0;
+            
+            if(__builtin_bswap32(SHA_Regs->CTRL) & 0x80000000) {
+                //SHA1((uint8_t*)Mem_Resolve(__builtin_bswap32(SHA_Regs->SRC) , as), ((__builtin_bswap32(SHA_Regs->CTRL) & 0x1FF) * 6), (uint8_t*)&SHA_Regs->H0);
+            }
+            
+            SHA_Regs->CTRL = 0;
         }
     }
 }
 
-int SHA_Init() {
-    SHA_Regs = malloc(0x1c);
+int SHA_Init(struct arm_state *_as) {
+    as = _as;
+    SHA_Regs = calloc(0x1c, 1);
     SHA.ptr = SHA_Regs;
     printf("\n SHA.ptr: 0x%X", SHA.ptr);
     Dev_AddDevice(&SHA);

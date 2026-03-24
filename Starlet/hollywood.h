@@ -53,6 +53,6 @@
 #define HW_SRNPROT           0x00000060
 #define HW_AHBPROT           0x00000064
 
-
+#define HW_BOOT0             0x0000018C
 
 #endif
