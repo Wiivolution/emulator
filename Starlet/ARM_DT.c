@@ -204,7 +204,11 @@ void ARM_DT_Execute_SDT_Instr(struct arm_state *as, uint32_t instr)
         as->regs[rn] = modified_base_value;
     }
 
-    as->regs[PC] += 4;
+    if(rd != PC) { 
+        // The CPU doesn't touch the PC when doing a
+        // DT operation if it's the target register
+        as->regs[PC] += 4;
+    }    
 }
 
 bool THUMB_DT_Is_Push_Instr(uint16_t instr) {
