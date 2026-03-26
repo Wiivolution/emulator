@@ -35,11 +35,13 @@ bool ARM_BR_Is_BX_Instr(uint32_t instr) {
 void ARM_BR_Execute_BX(struct arm_state *as, uint32_t instr) {
     uint8_t rn = instr & 0b1111;
 
-    as->regs[PC] = as->regs[rn];
+    as->regs[PC] = (as->regs[rn] & 0xFFFFFFFE);
     
-    if (instr & 0b1) {
+    if (instr & 0x20) { // BLX
         as->regs[LR] = as->regs[PC] + 4;
     }
+
+    as->cpsr |= (as->regs[rn] << 4) & 0x10;
 }
 
 bool ARM_BR_Is_Branch_Instr(uint32_t instr) {
@@ -75,6 +77,7 @@ bool THUMB_BR_Is_BranchType_Instr(uint16_t instr) {
 void THUMB_BR_Execute_BranchType_Instr(struct arm_state* as, uint16_t instr) {
     switch(((instr >> 12) & 0xF)) {
         case 0xD:
+            
         break;
 
         case 0xE:
