@@ -114,7 +114,6 @@ void* Mem_ResolveSRAM(uint32_t addr, arm_state *as, uint8_t i) {
 
                 case ARM_SRAM_B:
                     if(addr >= 0xFFFF0000) {
-                        printf("\nBoot0 ROM read detected");
                         return (boot0_rom + (addr & 0xFFF));
                     } else {
                         return (as->memory.SRAM + 0x10000 + (addr - Mem_Table[i].MMU_Addr_Start));
@@ -142,14 +141,23 @@ void* Mem_Resolve(uint32_t addr, void *_as) {
         if(addr >= Mem_Table[i].MMU_Addr_Start &&
            addr <= Mem_Table[i].MMU_Addr_End)
         {
-            if(Mem_Table[i].Mem == MEM_1) {
-                retaddr = (as->memory.MEM1 + (addr - Mem_Table[i].MMU_Addr_Start));
-            } else if(Mem_Table[i].Mem == MEM_2) {
-                retaddr = (as->memory.MEM2 + (addr - Mem_Table[i].MMU_Addr_Start));
-            } else if(Mem_Table[i].Mem == ARM_SRAM_A || Mem_Table[i].Mem == ARM_SRAM_B) {
-                retaddr = Mem_ResolveSRAM(addr, as, i);
-            } else if(Mem_Table[i].Mem == REGS) {
-                retaddr = &(as->HW_regs[(addr - Mem_Table[i].MMU_Addr_Start) / 4]);
+            switch(Mem_Table[i].Mem) {
+                case MEM_1:
+                    retaddr = (as->memory.MEM1 + (addr - Mem_Table[i].MMU_Addr_Start));
+                break;
+
+                case MEM_2:
+                    retaddr = (as->memory.MEM2 + (addr - Mem_Table[i].MMU_Addr_Start));
+                break;
+
+                case ARM_SRAM_A:
+                case ARM_SRAM_B:
+                    retaddr = Mem_ResolveSRAM(addr, as, i);
+                break;
+
+                case REGS:
+                    retaddr = &(as->HW_regs[(addr - Mem_Table[i].MMU_Addr_Start) / 4]);
+                break;
             }
         }
     }
