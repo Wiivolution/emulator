@@ -472,7 +472,7 @@ atomic_bool stop_thread = true;
 void* AES_EventHandler(void* args) {
     while(stop_thread) {
 		if(AES_Regs->CTRL) {
-			printf("\nAES -> Got CTRL: 0c%X", AES_Regs->CTRL);
+			printf("\nAES -> Got CTRL: 0c%X", __builtin_bswap32(AES_Regs->CTRL));
 			FIFO_IV_written = 0;
 			FIFO_KEY_written = 0;
 			struct AES_ctx ctx = {0};
