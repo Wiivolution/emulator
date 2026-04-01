@@ -33,9 +33,10 @@ void ARM_DT_Execute_Pop(struct arm_state *as, uint32_t instr);
 
 // THUMB :
 
-bool THUMB_DT_Is_Push_Instr(uint16_t instr);
 void THUMB_DT_Execute_Push(struct arm_state *as, uint16_t instr);
-bool THUMB_DT_Is_Pop_Instr(uint16_t instr);
 void THUMB_DT_Execute_Pop(struct arm_state *as, uint16_t instr);
+void THUMB_DT_Execute_LD_Lit(struct arm_state *as, uint16_t instr);
+void THUMB_DT_Execute_Im(struct arm_state *as, uint16_t instr);
+void THUMB_DT_Execute_SP(struct arm_state *as, uint16_t instr);
 
 #endif

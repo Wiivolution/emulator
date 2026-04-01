@@ -22,7 +22,17 @@
 #ifndef _ARM_DP_H_
 #define _ARM_DP_H_
 
+// ARM :
+
 bool ARM_DP_Is_DataProcessing(uint32_t instr);
 void ARM_DP_Execute(struct arm_state* as, uint32_t instr);
+
+// THUMB :
+
+void THUMB_DP_Execute_Shift(struct arm_state* as, uint16_t instr);
+void THUMB_DP_Execute_immop(struct arm_state* as, uint16_t instr);
+void THUMB_DP_Execute_Special(struct arm_state* as, uint16_t instr);
+void THUMB_DP_Execute_Regs(struct arm_state* as, uint16_t instr);
+void THUMB_add_sp_pc_imm(struct arm_state* as, uint16_t instr);
 
 #endif

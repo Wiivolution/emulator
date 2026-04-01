@@ -211,46 +211,92 @@ void ARM_DT_Execute_SDT_Instr(struct arm_state *as, uint32_t instr)
     }    
 }
 
-bool THUMB_DT_Is_Push_Instr(uint16_t instr) {
-    return ((((instr >> 12) & 0xF) == 0b1100 ||
-             ((instr >> 12) & 0xF) == 0b1011) &&
-             ((instr >> 11) & 1) == 0);
-}
-
 void THUMB_DT_Execute_Push(struct arm_state *as, uint16_t instr) {
     uint8_t register_list = instr & 0xFF;
-    uint8_t rn = (instr>>7) & 0x7;
-    uint32_t modified_base_value = as->regs[rn];
-    int i;
+    uint8_t nregs = 0;
+    for (int i = 0; i < 8; i++) {
+        if(((register_list >> i) & 0b1) == 0b1) {
+            nregs++;
+        }
+    }
+    uint32_t modified_base_value = as->regs[SP] - 4 * (((instr & 0x100) >> 8) + nregs);
 
-    for (i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++) {
         if ( ((register_list >> i) & 0b1) == 0b1) {
             memcpy(Mem_Resolve(modified_base_value, as), &as->regs[i], 4);
             modified_base_value += 4;
         }
     }
 
-    as->regs[PC] += 2;
-}
+    if(instr & 0x100) { // R flag
+        memcpy(Mem_Resolve(modified_base_value, as), &as->regs[LR], 4);
+        modified_base_value += 4;
+    }
 
-bool THUMB_DT_Is_Pop_Instr(uint16_t instr) {
-    return ((((instr >> 12) & 0xF) == 0b1100 ||
-             ((instr >> 12) & 0xF) == 0b1011) &&
-             ((instr >> 11) & 1) == 1);
+    as->regs[SP] = as->regs[SP] - 4 * (((instr & 0x100) >> 8) + nregs);
+    as->regs[PC] += 2;
 }
 
 void THUMB_DT_Execute_Pop(struct arm_state *as, uint16_t instr) {
     uint8_t register_list = instr & 0xFF;
-    uint8_t rn = (instr>>7) & 0x7;
-    uint32_t modified_base_value = as->regs[rn];
+    uint32_t modified_base_value = as->regs[SP];
     int i;
 
     for (i = 0; i < 8; i++) {
-        if ( ((register_list >> i) & 0b1) == 0b1) {
+        if(((register_list >> i) & 0b1) == 0b1) {
             memcpy(&as->regs[i], Mem_Resolve(modified_base_value, as), 4);
             modified_base_value += 4;
         }
     }
 
+    as->regs[SP] = modified_base_value;
+    as->regs[PC] += 2;
+}
+
+void THUMB_DT_Execute_LD_Lit(struct arm_state *as, uint16_t instr) {
+    uint8_t rd = (instr >> 8) & 0x7;
+    printf("\nLDR r%d, =0x%X", rd, (as->regs[PC] & 0xFFFFFFFC) + 4 + ((instr & 0xFF) * 4));
+    memcpy(&as->regs[rd], Mem_Resolve((as->regs[PC] & 0xFFFFFFFC) + 4 + (((instr & 0xFF) * 4)), as), 4);
+    as->regs[rd] = __builtin_bswap32(as->regs[rd]);
+    as->regs[PC] += 2;
+}
+
+void THUMB_DT_Execute_Im(struct arm_state *as, uint16_t instr) {
+    uint8_t rd = (instr) & 0x7;
+    uint8_t rn = (instr >> 3) & 0x7;
+
+    uint16_t offset = (instr >> 6) & 0x1F;
+    offset *= 4;
+
+    if(instr & 0x1000) { // Word/Byte flag
+        if(instr & 0x800) { // LD/ST flag
+            // LDRB
+            printf("\nLDRB");
+            memcpy(&as->regs[rd], Mem_Resolve(as->regs[rn] + offset, as), 1);
+        } else {
+            // STRB
+            printf("\nSTRB");
+            memcpy(Mem_Resolve(as->regs[rn] + offset, as), &as->regs[rd], 1);
+        }
+    } else {
+        if(instr & 0x800) { // LD/ST flag
+            printf("\nLDR r%d, [r%d, 0x%X]", rd, rn, offset);
+            memcpy(&as->regs[rd], Mem_Resolve(as->regs[rn] + offset, as), 4);
+            as->regs[rd] = __builtin_bswap32(as->regs[rd]);
+        } else {
+            printf("\nSTR");
+            as->regs[rd] = __builtin_bswap32(as->regs[rd]);
+            memcpy(Mem_Resolve(as->regs[rn] + offset, as), &as->regs[rd], 4);
+            as->regs[rd] = __builtin_bswap32(as->regs[rd]);
+        }
+    }
+    as->regs[PC] += 2;
+}
+
+void THUMB_DT_Execute_SP(struct arm_state *as, uint16_t instr) {
+    uint8_t rd = (instr >> 8) & 0x7;
+    printf("\nLDR r%d, =0x%X", rd, as->regs[SP] + ((instr & 0xFF) * 4));
+    memcpy(&as->regs[rd], Mem_Resolve(as->regs[SP] + (((instr & 0xFF) * 4)), as), 4);
+    as->regs[rd] = __builtin_bswap32(as->regs[rd]);
     as->regs[PC] += 2;
 }

@@ -70,5 +70,6 @@ void ARM_Print_State(struct arm_state *as);
 void ARM_SetCPSR(struct arm_state *as, int result, long long result_long);
 uint32_t _rot(uint32_t value, int shift);
 uint32_t _rotl(uint32_t value, int shift);
+bool THUMB_Is_cond_fulfilled(struct arm_state *as, uint8_t cond);
 
 #endif

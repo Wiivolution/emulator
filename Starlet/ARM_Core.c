@@ -30,6 +30,7 @@
 #include <unistd.h>
 
 #include "ARM_Core.h"
+#include "ARM_Coproc.h"
 #include "ARM_Branch.h"
 #include "ARM_DP.h"
 #include "ARM_DT.h"
@@ -39,6 +40,44 @@
 #include "aes.h"
 #include "sha.h"
 #include "hollywood.h"
+
+typedef struct tagENCODEMASK16 {
+    uint16_t mask;  /* bits to mask off for the test */
+    uint16_t match; /* masked bits must be equal to this */
+    void (*func)(struct arm_state *as, uint16_t instr);
+} ENCODEMASK16;
+
+static const ENCODEMASK16 THUMB_table[] = { // 32
+    { 0xf800, 0x0000, THUMB_DP_Execute_Shift },        /* logical shift left by immediate, or MOV */
+    { 0xf800, 0x0800, THUMB_DP_Execute_Shift },        /* logical shift right by immediate */
+    { 0xf800, 0x1000, THUMB_DP_Execute_Shift },        /* arithmetic shift right by immediate */
+//  { 0xfc00, 0x1800, THUMB_DP_Execute_addsub_reg },   /* add/subtract register */
+//  { 0xfc00, 0x1c00, THUMB_DP_Execute_addsub_imm },   /* add/subtract immediate */
+    { 0xe000, 0x2000, THUMB_DP_Execute_immop },        /* add/subtract/compare/move immediate */
+    { 0xfc00, 0x4000, THUMB_DP_Execute_Regs },         /* data processing (register) */
+    { 0xff00, 0x4400, THUMB_DP_Execute_Special },      /* special data processing (register) */
+    { 0xff00, 0x4500, THUMB_DP_Execute_Special },      /* special data processing (register) */
+    { 0xff00, 0x4600, THUMB_DP_Execute_Special },      /* special data processing (register) */
+    { 0xff00, 0x4700, THUMB_BR_Execute_BX },       /* branch/exchange */
+    { 0xf800, 0x4800, THUMB_DT_Execute_LD_Lit },       /* load from literal pool */
+//  { 0xf000, 0x5000, THUMB_DT_Execute_Reg},           /* load/store, register offset */
+    { 0xe000, 0x6000, THUMB_DT_Execute_Im},            /* load/store (word or byte), immediate offset */
+//  { 0xf000, 0x8000, THUMB_DT_Execute_Hw },           /* load/store halfword, immediate offset */
+    { 0xf000, 0x9000, THUMB_DT_Execute_SP},           /* load/store from/to stack */
+    { 0xf000, 0xa000, THUMB_add_sp_pc_imm },           /* add immediate to SP or PC (and store in register) */
+//  { 0xff00, 0xb000, THUMB_adj_sp },                  /* adjust stack pointer */
+//  { 0xf500, 0xb100, THUMB_cmp_branch },              /* compare and branch on (non-)zero */
+    { 0xfe00, 0xb400, THUMB_DT_Execute_Push },         /* push register list */
+    { 0xfe00, 0xbc00, THUMB_DT_Execute_Pop },          /* pop register list */
+//  { 0xff00, 0xbe00, THUMB_break },                   /* software breakpoint */
+//  { 0xf000, 0xc000, THUMB_DT_Execute_mul},           /* load/store multiple */
+//  { 0xff00, 0xdf00, THUMB_SWI },                     /* Software Interrupt */
+    { 0xfe00, 0xd000, THUMB_BR_Execute_cond },     /* conditional branch */
+    { 0xf800, 0xe000, THUMB_BR_Execute_uncond },   /* unconditional branch */
+    { 0xf801, 0xe800, THUMB_BR_Execute_BL_BLX },   /* BLX suffix */
+    { 0xf800, 0xf000, THUMB_BR_Execute_BL_BLX },   /* BL/BLX prefix */
+    { 0xf800, 0xf800, THUMB_BR_Execute_BL_BLX },   /* BL suffix */
+};
 
 struct arm_state *ARM_State_New(size_t entrypoint, uint32_t *boot0,
                                 uint32_t arg0, uint32_t arg1,
@@ -61,14 +100,12 @@ struct arm_state *ARM_State_New(size_t entrypoint, uint32_t *boot0,
     } 
 
     printf("Done.\n");
-    //printf("Putting program file into address 0x%X| Program size: 0x%X\n", Mem_Resolve(program_loc, as), program_size);
     fflush(stdout);
     memset(as->HW_regs, 0, 0x100);
-    //memcpy(Mem_Resolve(program_loc, as), program, program_size);
-    as->HW_regs[HW_BOOT0 / 4] |= 0x800;
+    as->HW_regs[HW_BOOT0 / 4] |= 0x800; // boot0 ROM is mapped when booting
 
     // Initialize all registers to zero.
-    as->cpsr = 0x1d3;
+    as->cpsr = 0x1C3;
     for (i = 0; i < NREGS; i++) {
         as->regs[i] = 0;
     }
@@ -97,10 +134,16 @@ void ARM_Print_State(struct arm_state *as)
     for (i = 0; i < NREGS; i++) {
         printf("r%d = (%X) %d\n", i, as->regs[i], (int) as->regs[i]);
     }
-    uint32_t pcdata = 0;
-    memcpy(&pcdata, Mem_Resolve(as->regs[PC], as), 4);
     
-    printf("Data at PC : 0x%X\n", __builtin_bswap32(pcdata));
+    if(as->cpsr & T_FLAG) {
+        uint16_t pcdata = 0;
+        memcpy(&pcdata, Mem_Resolve(as->regs[PC], as), 2);
+        printf("Data at PC : 0x%X\n", __builtin_bswap16(pcdata));
+    } else {
+        uint32_t pcdata = 0;
+        memcpy(&pcdata, Mem_Resolve(as->regs[PC], as), 4);
+        printf("Data at PC : 0x%X\n", __builtin_bswap32(pcdata));
+    }
     printf("cpsr: 0x%x", as->cpsr);
     if(as->cpsr & C_FLAG) {
         printf(" C ");
@@ -113,6 +156,9 @@ void ARM_Print_State(struct arm_state *as)
     }
     if(as->cpsr & V_FLAG) {
         printf(" V ");
+    }
+    if(as->cpsr & T_FLAG) {
+        printf(" T ");
     }
     printf("\nGPIO: 0x%08X\n", __builtin_bswap32(*(uint32_t*)Mem_Resolve(0xd8000e0, as)));
 }
@@ -144,7 +190,42 @@ void ARM_SetCPSR(struct arm_state *as, int result, long long result_long)
 }
 
 bool ARM_Is_cond_fulfilled(struct arm_state *as, uint32_t instr) {
-    switch ((instr >> 28) & 0xFF) {
+    switch ((instr >> 28) & 0xF) {
+        case 0b0000: //EQ
+            return ((as->cpsr >> 30) & 0b1) == 1;
+        case 0b0001: //NE
+            return ((as->cpsr >> 30) & 0b1) == 0;
+        case 0b0010:
+            return (as->cpsr & C_FLAG);
+        case 0b0011:
+            return !(as->cpsr & C_FLAG);
+        case 0b0100:
+            return (as->cpsr & N_FLAG);
+        case 0b0101:
+            return !(as->cpsr & N_FLAG);
+        case 0b0110:
+            return (as->cpsr & V_FLAG);
+        case 0b0111:
+            return !(as->cpsr & V_FLAG);
+        case 0b1000:
+            return (as->cpsr & C_FLAG) && !(as->cpsr & Z_FLAG);
+        case 0b1001:
+            return !(as->cpsr & C_FLAG) || (as->cpsr & Z_FLAG);
+        case 0b1010:
+            return (as->cpsr & C_FLAG) && !(as->cpsr & Z_FLAG);
+        case 0b1011: //LT
+            return ((as->cpsr >> 28) & 0b1) != ((as->cpsr >> 31) & 0b1);
+        case 0b1100: //GT
+            return (((as->cpsr >> 30) & 0b1) == 0) && (((as->cpsr >> 31) & 0b1) == ((as->cpsr >> 28) & 0b1));
+        case 0b1101: //GT
+            return (((as->cpsr >> 30) & 0b1) == 1) && (((as->cpsr >> 31) & 0b1) != ((as->cpsr >> 28) & 0b1));
+        case 0b1110: //AL
+            return true;
+    }
+}
+
+bool THUMB_Is_cond_fulfilled(struct arm_state *as, uint8_t cond) {
+    switch (cond) {
         case 0b0000: //EQ
             return ((as->cpsr >> 30) & 0b1) == 1;
         case 0b0001: //NE
@@ -195,7 +276,7 @@ int ARM_Execute_Single(struct arm_state *as)
     instr = __builtin_bswap32(instr);
     int ret = 0;
 
-    ARM_Print_State(as);
+    //ARM_Print_State(as);
 
     if (ARM_BR_Is_BX_Instr(instr)) {
         if(ARM_Is_cond_fulfilled(as, instr)) {
@@ -228,7 +309,14 @@ int ARM_Execute_Single(struct arm_state *as)
         }
     } else if (ARM_DT_Is_Pop_Instr(instr)) {
         ARM_DT_Execute_Pop(as, instr);
+    } else if (ARM_CP_Is_DP_Instr(instr)) {
+        as->regs[PC] += 4;
+    } else if (ARM_CP_Is_DT_Instr(instr)) {
+        as->regs[PC] += 4;
+    } else if (ARM_CP_Is_RT_Instr(instr)) {
+        as->regs[PC] += 4;
     } else {
+        printf("\n0x%X", instr>>24 & 0xF);
         return -1;
     }
     return ret;
@@ -238,46 +326,25 @@ int THUMB_Execute_Single(struct arm_state* as) {
     uint16_t instr;
     memcpy(&instr, Mem_Resolve(as->regs[PC], as), 2);
     instr = __builtin_bswap16(instr);
-    int ret = 0;
 
-    //ARM_Print_State(as);
-    /*
-    if (THUMB_BR_Is_BX_Instr(instr)) {
-        THUMB_BR_Execute_BX(as, instr);
-    } else if (THUMB_BR_Is_Branch_Instr(instr)) {
-        ARM_BR_Execute_Branch(as, instr);
-    } else if (ARM_DP_Is_DataProcessing(instr)) {
-        if (ARM_Is_cond_fulfilled(as, instr)) {
-            ARM_DP_Execute(as, instr);
+    ARM_Print_State(as);
+    
+    for(int i = 0; i < 20; i++) {
+        if((instr & THUMB_table[i].mask) == THUMB_table[i].match) {
+            THUMB_table[i].func(as, instr);
+            return 0;
         }
-        as->regs[PC] += 2;
-    } else if (ARM_DT_Is_SDT_Instr(instr)) {
-        if (ARM_Is_cond_fulfilled(as, instr)) {
-            ARM_DT_Execute_SDT_Instr(as, instr);
-        } else {
-            as->regs[PC] += 2;
-        }
-    } else if (ARM_DT_Is_Push_Instr(instr)) {
-        if (ARM_Is_cond_fulfilled(as, instr)) {
-            ARM_DT_Execute_Push(as, instr);
-        } else {
-            as->regs[PC] += 2;
-        }
-    } else if (ARM_DT_Is_Pop_Instr(instr)) {
-        ARM_DT_Execute_Pop(as, instr);
-    } else {
-        return -1;
     }
-    */
-    return ret;
+
+    return -1;
 }
 
 uint32_t instructions_executed = 0;
 
 uint32_t ARM_Execute(struct arm_state *as)
 {
-    while (as->regs[PC] != 0xFFFF0008) {
-        if(as->cpsr & T_FLAG) {
+    while (as->regs[PC] != 0xFFF004EA) {
+        if(!(as->cpsr & T_FLAG)) {
             int ret = ARM_Execute_Single(as);
             if(ret != 0) {
                 printf("\nBAD/UNIMPLEMENTED Instuction!");
@@ -286,10 +353,16 @@ uint32_t ARM_Execute(struct arm_state *as)
                 break;
             }
         } else {
-            THUMB_Execute_Single(as);
+            int ret = THUMB_Execute_Single(as);
+            if(ret != 0) {
+                printf("\nBAD/UNIMPLEMENTED Instuction!");
+                fflush(stdout);
+                sleep(1);
+                break;
+            }
         }
         fflush(stdout);
-        usleep(2000);
+        //usleep(2000);
         instructions_executed++;
     }
 

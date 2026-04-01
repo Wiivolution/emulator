@@ -22,9 +22,18 @@
 #ifndef _ARM_BRANCH_H_
 #define _ARM_BRANCH_H_
 
+// ARM :
+
 bool ARM_BR_Is_BX_Instr(uint32_t instr);
 void ARM_BR_Execute_BX(struct arm_state *as, uint32_t instr);
 bool ARM_BR_Is_Branch_Instr(uint32_t instr);
 void ARM_BR_Execute_Branch(struct arm_state *as, uint32_t instr);
+
+// THUMB :
+
+void THUMB_BR_Execute_cond(struct arm_state *as, uint16_t instr);
+void THUMB_BR_Execute_uncond(struct arm_state *as, uint16_t instr);
+void THUMB_BR_Execute_BL_BLX(struct arm_state *as, uint16_t instr);
+void THUMB_BR_Execute_BX(struct arm_state *as, uint16_t instr);
 
 #endif
